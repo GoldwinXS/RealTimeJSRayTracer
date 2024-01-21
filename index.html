@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>three.js PathTracing Renderer - Water Rendering</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1">
+    <link href="public/styles.css" rel="stylesheet">
+
+    <script async src="./node_modules/THREE.js-PathTracing-Renderer/js/es-module-shims.js"></script>
+    <script type="importmap">
+		{
+			"imports": {
+				"three": "./js/three.module.min.js"
+			}
+		}
+		</script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        window.THREE = THREE;
+        import Stats from './node_modules/THREE.js-PathTracing-Renderer/js/stats.module.js';
+        window.Stats = Stats;
+        import GUI from './node_modules/THREE.js-PathTracing-Renderer/js/lil-gui.module.min.js';
+        window.GUI = GUI;
+    </script>
+</head>
+
+<body>
+
+    <div id="container">
+        <canvas id="canvas"></canvas>
+    </div>
+    <div id="info">three.js PathTracing Renderer - Water Rendering</div>
+
+    <div id="cameraInfo" style="position:fixed; left:3%; bottom:2%; font-family:arial; color:rgb(255,255,255);"></div>
+    <script defer src="./node_modules/THREE.js-PathTracing-Renderer/js/FirstPersonCameraControls.js"> </script>
+    <script defer src="./node_modules/THREE.js-PathTracing-Renderer/js/PathTracingCommon.js"> </script>
+    <script defer type="module" src="./main.js"> </script>
+
+</body>
+
+</html>
