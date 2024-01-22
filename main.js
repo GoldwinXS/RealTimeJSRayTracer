@@ -1,29 +1,26 @@
 import * as THREE from 'three'
-import LoadVoxels from './LoadVoxels';
+import LoadVoxels from './js/LoadVoxels';
 import { onWindowResize } from './WindowEvents';
 import { sceneSettings } from './settings';
-import { FirstPersonCameraControls } from './FirstPersonCameraControls';
+import { FirstPersonCameraControls } from './js/FirstPersonCameraControls';
 
-// scene/demo-specific variables go here
-
-
-function setupControls(sceneSettings) {
-    sceneSettings.controls = new FirstPersonCameraControls(sceneSettings.worldCamera);
-
+function setupControls({ worldCamera, controls, cameraControls }) {
+    controls = new FirstPersonCameraControls(worldCamera);
     // Initialize Controls
-    sceneSettings.controls.name = "controls"
-    sceneSettings.controls.isPaused = false
-    sceneSettings.controls.addEventListeners()
+    controls.name = "controls"
+    controls.isPaused = false
+    controls.addEventListeners()
     // Set up Camera Controls
-    sceneSettings.cameraControls.object = sceneSettings.controls.getObject();
-    sceneSettings.cameraControls.yawObject = sceneSettings.controls.getYawObject();
-    sceneSettings.cameraControls.pitchObject = sceneSettings.controls.getPitchObject();
-    sceneSettings.cameraControls.object.name = "cameraControls.object"
-    sceneSettings.cameraControls.yawObject.name = "cameraControls.yawObject"
-    sceneSettings.cameraControls.pitchObject.name = "cameraControls.pitchObject"
-    sceneSettings.cameraControls.object.position.set(96, 397, 278);
-    sceneSettings.cameraControls.yawObject.rotation.y = -0.3;
-    sceneSettings.cameraControls.pitchObject.rotation.x = -0.45;
+    cameraControls.object = controls.getObject();
+    cameraControls.yawObject = controls.getYawObject();
+    cameraControls.pitchObject = controls.getPitchObject();
+    cameraControls.object.name = "cameraControls.object"
+    cameraControls.yawObject.name = "cameraControls.yawObject"
+    cameraControls.pitchObject.name = "cameraControls.pitchObject"
+    cameraControls.object.position.set(96, 397, 278);
+    cameraControls.yawObject.rotation.y = -0.3;
+    cameraControls.pitchObject.rotation.x = -0.45;
+    return controls
 }
 
 function updateCameraVectors({ controls, camera }) {
@@ -60,7 +57,6 @@ function loadShaderAndCreateMesh(sceneSettings, shaderConfig) {
         });
     });
 }
-
 
 function setupUniforms({
     pathTracing,
@@ -171,7 +167,7 @@ function initSceneData(sceneSettings) {
     // pathTracing.scene.add(voxelMesh)
     sceneSettings.pathTracing.scene.add(sceneSettings.tallBox.mesh);
 
-    setupControls(sceneSettings)
+    sceneSettings.controls = setupControls(sceneSettings)
     // scene/demo-specific uniforms go here
     sceneSettings.pathTracing.uniforms.uShortBoxInvMatrix = { value: new THREE.Matrix4() };
     sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix = { value: new THREE.Matrix4() };
@@ -180,8 +176,6 @@ function initSceneData(sceneSettings) {
     sceneSettings.pathTracing.uniforms.voxelTexture = { value: LoadVoxels.voxelTexture }
     // pathTracing.uniforms.uVoxelMeshInvMatrix.value.copy(voxelMesh.matrixWorld).invert();
 }
-
-initSceneData(sceneSettings);
 
 function setupRenderTargets(context) {
     // setup render targets...
@@ -264,8 +258,6 @@ function setupPathTracing(sceneSettings) {
     // everything is set up, now we can start animating
     animate();
 }
-
-
 
 function setCameraInfoElementStyle(cameraInfoElement) {
     cameraInfoElement.style.cursor = "default";
@@ -415,5 +407,7 @@ function startApp() {
         }
     );
 }
+
+initSceneData(sceneSettings);
 
 startApp()
