@@ -6,15 +6,15 @@ precision highp sampler3D;
 uniform mat4 uShortBoxInvMatrix;
 uniform mat4 uTallBoxInvMatrix;
 uniform mat4 uVoxelMeshInvMatrix;
-// uniform sampler3D voxelTexture;
+uniform sampler3D voxelTexture;
 
 #include <pathtracing_uniforms_and_defines>
 
 #define N_QUADS 1
 #define N_BOXES 4
 
-const float voxelGridSize = 4.0;
-const float voxelSize = 10.0;
+const float voxelGridSize = 21.0;
+const float voxelSize = 5.0;
 
 //-----------------------------------------------------------------------
 
@@ -75,57 +75,6 @@ float getWaterWaveHeight(vec3 pos) {
 
 	return STILL_WATER_LEVEL + (waveOffset * WATER_WAVE_AMP);
 }
-
-// Vec2f rayDirection = { ..., ... }; // assumed normalized
-// Vec2f rayOrigin = { ..., ... };
-// Vec2f gridResolution = { ..., ... };
-// Vec2f cellDimension = (gridMax - gridMin) / gridResolution;
-// Vec2f deltaT, nextCrossingT;
-// Vec2f rayOrigGrid = rayOrigin - gridMin;
-// if (rayDirection[0] < 0) {
-//     deltaT[0] = -gridDimension[0] / RayDirection[0]
-//     t_x = (floor(rayOrigGrid[0] / cellDimension[0]) * cellDimension[0] 
-//         - rayOrigGrid[0]) / rayDirection[0];
-// }
-// else {
-//     deltaT[0] = gridDimension[0] / RayDirection[0];
-//     t_x = ((floor(rayOrigGrid[0] / cellDimension[0]) + 1) * cellDimension[0]
-//         - rayOrigGrid[0]) / rayDirection[0];
-// }
-// if (rayDirection[1] < 0) {
-//     deltaT[1] = -gridDimension[1] / RayDirection[1]
-//     t_y = (floor(rayOrigGrid[1] / cellDimension[1]) * cellDimension[1]
-//         - rayOrigGrid[1]) / rayDirection[1];
-// }
-// else {
-//     deltaT[1] = gridDimension[1] / RayDirection[1]
-//     t_y = ((floor(rayOrigGrid[1] / cellDimension[1]) + 1) * cellDimension[1]
-//         - rayOrigGrid[1]) / rayDirection[1];
-// }
-// float t = 0;
-// Vec2i cellIndex = { .., ... }; // origin of the ray (cell index)
-// while (1) {
-//     if (t_x < t_y) {
-//         t = t_x; // current t, next intersection with cell along ray
-//         t_x += deltaT[0]; // increment, next crossing along x
-//         if (rayDirection[0] < 0)
-//             cellIndex[0] -= 1;
-//         else
-//             cellIndex[0] += 1;
-//     }
-//     else {
-//         t = t_y;
-//         t_y += deltaT[1]; // increment, next crossing along y
-//         if (rayDirection[1] < 0)
-//             cellIndex[1] -= 1;
-//         else
-//             cellIndex[1] += 1;
-//     }
-// 	// if some condition is met break from the loop
-//     if (cellIndex[0] < 0 || cellIndex[1] < 0 || 
-//         cellIndex[0] > gridDimension[0] - 1 || cellIndex[1] > gridDimension[1] - 1) 
-//         break;
-// }
 
 void getTandDeltaT(inout float t, inout float deltaT, float rayDirection, float gridDimension, float rayOrigGrid, float cellDimension) {
 	// Only scalar values in this function, since the same logic applies to all axies but we need to repeat it for all 
@@ -188,10 +137,10 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 			return ivec3(-1);
 		}
 		// Check if we have hit a voxel
-		// float alphaValue = texture(voxelTexture, vec3(cellIndex) / float(voxelGridSize - 1.0)).a;
-		// if(alphaValue > 0.0) {
-		// 	return cellIndex;
-		// }
+		float alphaValue = texture(voxelTexture, vec3(cellIndex) / float(voxelGridSize - 1.0)).a;
+		if(alphaValue > 0.0) {
+			return cellIndex;
+		}
 
 		// If we have not hit anything then continue to march
 		if(t.x < t.y && t.x < t.z) {
@@ -304,6 +253,7 @@ float SceneIntersect(int checkWater)
 	// Check if the ray will intersect with the voxel volume at all
 	d = BoxIntersect(boxes[3].maxCorner, boxes[3].minCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
 	if(d < t) {
+		hitColor = vec3(0.86, 0.25, 0.25);
 		// If we have a hit with the volume, then translate the ray so that it is touching the box 
 		rObjOrigin += d * rObjDirection * 1.00001;
 		// Get the position the voxel was hit at between 0 and voxelGridZise
@@ -324,7 +274,7 @@ float SceneIntersect(int checkWater)
 			t = d;
 			hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
 			hitEmission = vec3(0.0);
-			// hitColor = texture(voxelTexture, vec3(voxelCoords) / float(voxelGridSize - 1.0)).rbg;
+			hitColor = texture(voxelTexture, vec3(voxelCoords) / float(voxelGridSize - 1.0)).rbg;
 			hitType = boxes[3].type;
 			hitObjectID = float(objectCount);
 			vec3 voxelCoordsObj = vec3(voxelCoords) + boxes[3].minCorner;

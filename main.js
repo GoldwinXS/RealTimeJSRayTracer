@@ -1,110 +1,32 @@
 import * as THREE from 'three'
-import LoadVoxels from './js/LoadVoxels';
+import { loadVoxFile, createVoxelTextureAndMesh, processVoxData } from './js/LoadVoxels';
 import { onWindowResize } from './js/WindowEvents';
 import { sceneSettings } from './settings';
-import { FirstPersonCameraControls } from './js/FirstPersonCameraControls';
+import {
+    setupUniforms,
+    setupRenderTargets,
+    handleSceneDynamism,
+    updateAnimatedPathtracingUniforms,
+    loadShaderAndCreateMesh
+} from './js/pathtracing/PathTracingUtils'
+import {
+    setupControls,
+    updateCameraVectors,
+    setCameraInfoElementStyle
+} from './js/camera/cameraUtils';
 
-function setupControls({ worldCamera, controls, cameraControls }) {
-    controls = new FirstPersonCameraControls(worldCamera);
-    // Initialize Controls
-    controls.name = "controls"
-    controls.isPaused = false
-    controls.addEventListeners()
-    // Set up Camera Controls
-    cameraControls.object = controls.getObject();
-    cameraControls.yawObject = controls.getYawObject();
-    cameraControls.pitchObject = controls.getPitchObject();
-    cameraControls.object.name = "cameraControls.object"
-    cameraControls.yawObject.name = "cameraControls.yawObject"
-    cameraControls.pitchObject.name = "cameraControls.pitchObject"
-    cameraControls.object.position.set(96, 397, 278);
-    cameraControls.yawObject.rotation.y = -0.3;
-    cameraControls.pitchObject.rotation.x = -0.45;
-    return controls
-}
 
-function updateCameraVectors({ controls, camera }) {
-    // this gives us a vector in the direction that the camera is pointing,
-    // which will be useful for moving the camera 'forward' and shooting projectiles in that direction
-    controls.getDirection(camera.directionVector);
-    camera.directionVector.normalize();
-    controls.getUpVector(camera.upVector);
-    camera.upVector.normalize();
-    controls.getRightVector(camera.rightVector);
-    camera.rightVector.normalize();
-}
+function createConfiguredMesh(settings, geometryParams, materialParams, transformationParams) {
+    const geometry = new THREE.BoxGeometry(...geometryParams);
+    const material = new THREE.MeshPhysicalMaterial(materialParams);
+    const mesh = new THREE.Mesh(geometry, material);
 
-function loadShaderAndCreateMesh(sceneSettings, shaderConfig) {
-    sceneSettings.fileLoader.load(shaderConfig.vertexShaderPath, function (vertexShaderText) {
-        sceneSettings.fileLoader.load(shaderConfig.fragmentShaderPath, function (fragmentShaderText) {
-            const material = new THREE.ShaderMaterial({
-                uniforms: shaderConfig.uniforms,
-                uniformsGroups: shaderConfig.uniformsGroups || [],
-                defines: shaderConfig.defines || {},
-                vertexShader: vertexShaderText,
-                fragmentShader: fragmentShaderText,
-                depthTest: shaderConfig.depthTest,
-                depthWrite: shaderConfig.depthWrite
-            });
+    mesh.visible = transformationParams.visible;
+    mesh.rotation.set(...transformationParams.rotation);
+    mesh.position.set(...transformationParams.position);
+    mesh.updateMatrixWorld(transformationParams.updateMatrixWorld);
 
-            const mesh = new THREE.Mesh(shaderConfig.geometry, material);
-            shaderConfig.scene.add(mesh);
-
-            // Special handling if needed (e.g., adding to camera)
-            if (shaderConfig.specialHandling) {
-                shaderConfig.specialHandling(mesh);
-            }
-        });
-    });
-}
-
-function setupUniforms({
-    pathTracing,
-    screenOutput,
-    screenCopy,
-    EPS_intersect,
-    apertureSize,
-    focusDistance,
-    pixelEdgeSharpness,
-    edgeSharpenSpeed,
-    filterDecaySpeed,
-    sceneIsDynamic,
-    useToneMapping
-}) {
-    // setup screen-size quad geometry and shaders....
-    // this full-screen quad mesh performs the path tracing operations and produces a screen-sized image
-    pathTracing.uniforms.tPreviousTexture = { type: "t", value: screenCopy.renderTarget.texture };
-    pathTracing.uniforms.tBlueNoiseTexture = { type: "t", value: sceneSettings.blueNoiseTexture };
-    pathTracing.uniforms.uCameraMatrix = { type: "m4", value: new THREE.Matrix4() };
-    pathTracing.uniforms.uResolution = { type: "v2", value: new THREE.Vector2() };
-    pathTracing.uniforms.uRandomVec2 = { type: "v2", value: new THREE.Vector2() };
-    pathTracing.uniforms.uEPS_intersect = { type: "f", value: EPS_intersect };
-    pathTracing.uniforms.uTime = { type: "f", value: 0.0 };
-    pathTracing.uniforms.uSampleCounter = { type: "f", value: 0.0 }; //0.0
-    pathTracing.uniforms.uPreviousSampleCount = { type: "f", value: 1.0 };
-    pathTracing.uniforms.uFrameCounter = { type: "f", value: 1.0 }; //1.0
-    pathTracing.uniforms.uULen = { type: "f", value: 1.0 };
-    pathTracing.uniforms.uVLen = { type: "f", value: 1.0 };
-    pathTracing.uniforms.uApertureSize = { type: "f", value: apertureSize };
-    pathTracing.uniforms.uFocusDistance = { type: "f", value: focusDistance };
-    pathTracing.uniforms.uCameraIsMoving = { type: "b1", value: false };
-    pathTracing.uniforms.uUseOrthographicCamera = { type: "b1", value: false };
-
-    screenOutput.uniforms = {
-        tPathTracedImageTexture: { type: "t", value: pathTracing.renderTarget.texture },
-        uSampleCounter: { type: "f", value: 0.0 },
-        uOneOverSampleCounter: { type: "f", value: 0.0 },
-        uPixelEdgeSharpness: { type: "f", value: pixelEdgeSharpness },
-        uEdgeSharpenSpeed: { type: "f", value: edgeSharpenSpeed },
-        uFilterDecaySpeed: { type: "f", value: filterDecaySpeed },
-        uSceneIsDynamic: { type: "b1", value: sceneIsDynamic },
-        uUseToneMapping: { type: "b1", value: useToneMapping }
-    };
-
-    screenCopy.uniforms = {
-        tPathTracedImageTexture: { type: "t", value: pathTracing.renderTarget.texture }
-    };
-
+    settings.mesh = mesh;
 }
 
 function initSceneData(sceneSettings) {
@@ -124,7 +46,6 @@ function initSceneData(sceneSettings) {
 
     // Add worldCamera to pathTracing.scene
     sceneSettings.pathTracing.scene.add(sceneSettings.worldCamera);
-
     sceneSettings.debug.material = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // Green color
 
     // Set or change any needed scene data
@@ -132,63 +53,48 @@ function initSceneData(sceneSettings) {
     sceneSettings.pixelRatio = window.mouseControl ? 1.0 : 0.8;
     sceneSettings.EPS_intersect = 0.01;
 
-    // Create and place meshes.
-    sceneSettings.tallBox.geometry = new THREE.BoxGeometry(1, 1, 1);
-    sceneSettings.tallBox.material = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color(0.95, 0.95, 0.95), //RGB, ranging from 0.0 - 1.0
-        roughness: 1.0 // ideal Diffuse material	
-    });
-    sceneSettings.tallBox.mesh = new THREE.Mesh(sceneSettings.tallBox.geometry, sceneSettings.tallBox.material);
 
-    sceneSettings.tallBox.mesh.visible = false; // disable normal Three.js rendering updates of this object: 
-    sceneSettings.tallBox.mesh.rotation.set(0, Math.PI * 0.1, 0);
-    sceneSettings.tallBox.mesh.position.set(180, 170, -350);
-    sceneSettings.tallBox.mesh.updateMatrixWorld(true); // 'true' forces immediate matrix update
-    sceneSettings.shortBox.geometry = new THREE.BoxGeometry(1, 1, 1);
-    sceneSettings.shortBox.material = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color(0.55, 0.95, 0.55), //RGB, ranging from 0.0 - 1.0
-        roughness: 1.0 // ideal Diffuse material	
-    });
-    sceneSettings.shortBox.mesh = new THREE.Mesh(sceneSettings.shortBox.geometry, sceneSettings.shortBox.material);
-    sceneSettings.shortBox.mesh.visible = false;
-    sceneSettings.shortBox.mesh.rotation.set(0, -Math.PI * 0.09, 0);
-    sceneSettings.shortBox.mesh.position.set(800, 85, -570);
-    sceneSettings.shortBox.mesh.updateMatrixWorld(true); // 'true' forces immediate matrix update
 
-    // const { loadedVoxels, size } = await LoadVoxels.processVoxelFile('./castle.vox')
-    // const voxelMesh = LoadVoxels.createVoxelMesh(loadedVoxels, size)
-    // voxelMesh.visible = false;
-    // voxelMesh.rotation.set(0, -Math.PI * 0.09, 0);
-    // voxelMesh.position.set(200, 120, -200);
-    // voxelMesh.updateMatrixWorld(true); // 'true' forces immediate matrix update
+    createConfiguredMesh(sceneSettings.tallBox, [1, 1, 1], {
+        color: new THREE.Color(0.95, 0.95, 0.95),
+        roughness: 1.0
+    }, {
+        visible: false,
+        rotation: [0, Math.PI * 0.1, 0],
+        position: [180, 170, -350],
+        updateMatrixWorld: true
+    });
+
+    createConfiguredMesh(sceneSettings.shortBox, [1, 1, 1], {
+        color: new THREE.Color(0.55, 0.95, 0.55),
+        roughness: 1.0
+    }, {
+        visible: false,
+        rotation: [0, -Math.PI * 0.09, 0],
+        position: [800, 85, -570],
+        updateMatrixWorld: true
+    });
+
+
+    sceneSettings.voxels.mesh.visible = false;
+    sceneSettings.voxels.mesh.rotation.set(0, -Math.PI * 0.09, 0);
+    sceneSettings.voxels.mesh.position.set(200, 120, -200);
+    sceneSettings.voxels.mesh.updateMatrixWorld(true); // 'true' forces immediate matrix update
 
     // Add meshes.
     sceneSettings.pathTracing.scene.add(sceneSettings.shortBox.mesh);
-    // pathTracing.scene.add(voxelMesh)
+    sceneSettings.pathTracing.scene.add(sceneSettings.voxels.mesh)
     sceneSettings.pathTracing.scene.add(sceneSettings.tallBox.mesh);
 
     sceneSettings.controls = setupControls(sceneSettings)
+    sceneSettings.controls.addEventListeners(sceneSettings)
     // scene/demo-specific uniforms go here
-    sceneSettings.pathTracing.uniforms.uShortBoxInvMatrix = { value: new THREE.Matrix4() };
-    sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix = { value: new THREE.Matrix4() };
-    sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix2 = { value: new THREE.Matrix4() };
-    sceneSettings.pathTracing.uniforms.uVoxelMeshInvMatrix = { value: new THREE.Matrix4() };
-    sceneSettings.pathTracing.uniforms.voxelTexture = { value: LoadVoxels.voxelTexture }
-    // pathTracing.uniforms.uVoxelMeshInvMatrix.value.copy(voxelMesh.matrixWorld).invert();
-}
-
-function setupRenderTargets(context) {
-    // setup render targets...
-    let renderTarget = new THREE.WebGLRenderTarget(context.drawingBufferWidth, context.drawingBufferHeight, {
-        minFilter: THREE.NearestFilter,
-        magFilter: THREE.NearestFilter,
-        format: THREE.RGBAFormat,
-        type: THREE.FloatType,
-        depthBuffer: false,
-        stencilBuffer: false
-    });
-    renderTarget.texture.generateMipmaps = false;
-    return renderTarget
+    let pathTracingUniforms = sceneSettings.pathTracing.uniforms
+    pathTracingUniforms.uShortBoxInvMatrix = { value: new THREE.Matrix4() };
+    pathTracingUniforms.uTallBoxInvMatrix = { value: new THREE.Matrix4() };
+    pathTracingUniforms.uTallBoxInvMatrix2 = { value: new THREE.Matrix4() };
+    pathTracingUniforms.uVoxelMeshInvMatrix = { value: new THREE.Matrix4() };
+    pathTracingUniforms.voxelTexture = { value: sceneSettings.voxels.texture }
 }
 
 function setupPathTracing(sceneSettings) {
@@ -259,52 +165,6 @@ function setupPathTracing(sceneSettings) {
     animate();
 }
 
-function setCameraInfoElementStyle(cameraInfoElement) {
-    cameraInfoElement.style.cursor = "default";
-    cameraInfoElement.style.userSelect = "none";
-    cameraInfoElement.style.MozUserSelect = "none";
-}
-
-function handleSceneDynamism({
-    cameraIsMoving,
-    sceneIsDynamic,
-    sampleCounter,
-    frameCounter,
-    cameraRecentlyMoving,
-    pathTracingUniforms
-}) {
-    if (!cameraIsMoving) {
-        if (sceneIsDynamic)
-            sampleCounter = 1.0; // reset for continuous updating of image
-        else sampleCounter += 1.0; // for progressive refinement of image
-
-        frameCounter += 1.0;
-        cameraRecentlyMoving = false;
-    }
-
-    if (cameraIsMoving) {
-        frameCounter += 1.0;
-        if (!cameraRecentlyMoving) {
-            // record current sampleCounter before it gets set to 1.0 below
-            pathTracingUniforms.uPreviousSampleCount.value = sampleCounter;
-            frameCounter = 1.0;
-            cameraRecentlyMoving = true;
-        }
-        sampleCounter = 1.0;
-    }
-
-    return { sampleCounter, frameCounter }
-}
-
-function updateAnimatedPathtracingUniforms({ pathTracing, elapsedTime, cameraIsMoving, sampleCounter, frameCounter }) {
-    pathTracing.uniforms.uTime.value = elapsedTime;
-    pathTracing.uniforms.uCameraIsMoving.value = cameraIsMoving;
-    pathTracing.uniforms.uSampleCounter.value = sampleCounter;
-    pathTracing.uniforms.uFrameCounter.value = frameCounter;
-    pathTracing.uniforms.uRandomVec2.value.set(Math.random(), Math.random());
-
-}
-
 function animate() {
     // reset flags
     sceneSettings.cameraIsMoving = false;
@@ -334,6 +194,8 @@ function animate() {
     // Update scene specific uniforms
     sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix.value.copy(sceneSettings.tallBox.mesh.matrixWorld).invert();
     sceneSettings.pathTracing.uniforms.uShortBoxInvMatrix.value.copy(sceneSettings.shortBox.mesh.matrixWorld).invert();
+    sceneSettings.pathTracing.uniforms.uVoxelMeshInvMatrix.value.copy(sceneSettings.voxels.mesh.matrixWorld).invert();
+
 
     // INFO
     sceneSettings.cameraInfoElement.innerHTML = "FOV: " + sceneSettings.worldCamera.fov + " / Aperture: " + sceneSettings.apertureSize.toFixed(2) + " / FocusDistance: " + sceneSettings.focusDistance + "<br>" + "Samples: " + sceneSettings.sampleCounter;
@@ -406,8 +268,31 @@ function startApp() {
             setupPathTracing(sceneSettings);
         }
     );
+
 }
 
-initSceneData(sceneSettings);
+async function loadFilesAndStart(sceneSettings) {
+    // Handle loading of any files ayncronously. 
+    try {
+        const { voxData, size } = await loadVoxFile('./models/castle.vox');
+        const voxelData = processVoxData(voxData)
+        const { voxelMesh, voxelTexture, voxelMaterial } = createVoxelTextureAndMesh(voxelData, size);
+        sceneSettings.voxels.mesh = voxelMesh
+        sceneSettings.material = voxelMaterial
+        sceneSettings.voxels.texture = voxelTexture
+        sceneSettings.pathTracing.scene.add(voxelMesh);
+    } catch (error) {
+        console.error('Error loading VOX file:', error);
+        // Handle the error appropriately
+    }
 
-startApp()
+    // Now start the application
+    initSceneData(sceneSettings);
+    startApp();
+}
+
+
+
+
+
+loadFilesAndStart(sceneSettings)

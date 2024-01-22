@@ -12,6 +12,12 @@ export const sceneSettings = {
         material: null,
         mesh: null
     },
+    voxels: {
+        geometry: null,
+        material: null,
+        mesh: null,
+        texture: null,
+    },
 
     // Path Tracing Elements
     pathTracing: {
@@ -53,6 +59,7 @@ export const sceneSettings = {
     oldYawRotation: null,
     oldPitchRotation: null,
     isPaused: true,
+    ableToEngagePointerLock: true,
     cameraInfoElement: document.getElementById('cameraInfo'),
     blueNoiseTexture: null,
     container: null,
@@ -117,6 +124,5 @@ sceneSettings.pathTracing.scene.name = "pathTracing.scene"
 sceneSettings.screenCopy.geometry.name = "screenCopy.geometry"
 sceneSettings.screenOutput.geometry.name = "screenOutput.geometry"
 sceneSettings.pathTracing.geometry.name = "pathTracing.geometry"
-
 
 export default sceneSettings 

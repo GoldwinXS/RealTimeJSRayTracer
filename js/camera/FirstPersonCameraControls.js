@@ -109,7 +109,6 @@ export var FirstPersonCameraControls = function (camera) {
         return KeyboardState[keyName];
     }
     this.onKeyDown = function (event) {
-        console.log("button pressed", event.code)
         event.preventDefault();
         KeyboardState[event.code] = true;
     }
@@ -167,9 +166,23 @@ export var FirstPersonCameraControls = function (camera) {
         return { oldYawRotation, oldPitchRotation, cameraIsMoving }
     }
 
+    function handleChangeFOV(event, FOVSettings) {
+        if (FOVSettings.isPaused)
+            return;
 
+        event.stopPropagation();
 
-    this.addEventListeners = function () {
+        if (event.deltaY > 0) {
+            FOVSettings.increaseFOV = true;
+            FOVSettings.dollyCameraOut = true;
+        }
+        else if (event.deltaY < 0) {
+            FOVSettings.decreaseFOV = true;
+            FOVSettings.dollyCameraIn = true;
+        }
+    }
+
+    this.addEventListeners = function (sceneSettings) {
         document.addEventListener('keydown', this.onKeyDown, false);
         document.addEventListener('keyup', this.onKeyUp, false);
 
@@ -180,43 +193,46 @@ export var FirstPersonCameraControls = function (camera) {
         //     ableToEngagePointerLock = true;
         // }, false);
 
-        // // window.addEventListener('wheel', onMouseWheel, false);
 
-        // // window.addEventListener("click", function(event) 
-        // // {
-        // // 	event.preventDefault();	
-        // // }, false);
-        // window.addEventListener("dblclick", function (event) {
-        //     event.preventDefault();
-        // }, false);
-
-        // document.body.addEventListener("click", function (event) {
-        //     if (!ableToEngagePointerLock)
-        //         return;
-        //     this.requestPointerLock = this.requestPointerLock || this.mozRequestPointerLock;
-        //     this.requestPointerLock();
-        // }, false);
+        // document.addEventListener('wheel', function (event) {
+        //     handleChangeFOV(event, FOVSettings);
+        // });
 
 
+        window.addEventListener("click", function (event) {
+            event.preventDefault();
+        }, false);
+        window.addEventListener("dblclick", function (event) {
+            event.preventDefault();
+        }, false);
 
-        // let pointerlockChange = function (event) {
-        //     if (document.pointerLockElement === document.body ||
-        //         document.mozPointerLockElement === document.body || document.webkitPointerLockElement === document.body) {
-        //         document.addEventListener('keydown', this.onKeyDown, false);
-        //         document.addEventListener('keyup', this.onKeyUp, false); 
-        //         isPaused = false;
-        //     }
-        //     else {
-        //         document.removeEventListener('keydown', this.onKeyDown, false);
-        //         document.removeEventListener('keyup', this.onKeyUp, false);
-        //         isPaused = true;
-        //     }
-        // };
+        // eslint-disable-next-line no-unused-vars
+        document.body.addEventListener("click", function (event) {
+            if (!sceneSettings.ableToEngagePointerLock)
+                return;
+            this.requestPointerLock = this.requestPointerLock || this.mozRequestPointerLock;
+            this.requestPointerLock();
+        }, false);
 
-        // // Hook pointer lock state change events
-        // document.addEventListener('pointerlockchange', pointerlockChange, false);
-        // document.addEventListener('mozpointerlockchange', pointerlockChange, false);
-        // document.addEventListener('webkitpointerlockchange', pointerlockChange, false);
+        // eslint-disable-next-line no-unused-vars
+        let pointerlockChange = function (event) {
+            if (document.pointerLockElement === document.body ||
+                document.mozPointerLockElement === document.body || document.webkitPointerLockElement === document.body) {
+                document.addEventListener('keydown', this.onKeyDown, false);
+                document.addEventListener('keyup', this.onKeyUp, false);
+                sceneSettings.isPaused = false;
+            }
+            else {
+                document.removeEventListener('keydown', this.onKeyDown, false);
+                document.removeEventListener('keyup', this.onKeyUp, false);
+                sceneSettings.isPaused = true;
+            }
+        };
+
+        // Hook pointer lock state change events
+        document.addEventListener('pointerlockchange', pointerlockChange, false);
+        document.addEventListener('mozpointerlockchange', pointerlockChange, false);
+        document.addEventListener('webkitpointerlockchange', pointerlockChange, false);
     }
 
 };

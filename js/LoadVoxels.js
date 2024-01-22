@@ -1,9 +1,12 @@
 import * as THREE from "three";
-
-
 import readVox from 'vox-reader';
 
-function processVoxData(voxData) {
+// Function to calculate linear index from 3D coordinates
+function calculateIndex(x, y, z, size) {
+    return 4 * (z * size * size + y * size + x); // 4 for RGBA
+}
+
+export function processVoxData(voxData) {
     const size = voxData.size;
     const voxelData = new Uint8Array(size * size * size * 4); // 4 for RGBA
 
@@ -23,7 +26,7 @@ function processVoxData(voxData) {
     return voxelData
 }
 
-async function loadVoxFile(filePath) {
+export async function loadVoxFile(filePath) {
     try {
         const response = await fetch(filePath);
         const buffer = await response.arrayBuffer();
@@ -37,21 +40,8 @@ async function loadVoxFile(filePath) {
     }
 }
 
-async function processVoxelFile(filePath) {
-    const { voxData, size } = await loadVoxFile(filePath);
-    if (voxData) {
-        const processedVoxelData = processVoxData(voxData)
-        return { processedVoxelData, size };
-    }
-}
 
-// Function to calculate linear index from 3D coordinates
-function calculateIndex(x, y, z, size) {
-    return 4 * (z * size * size + y * size + x); // 4 for RGBA
-}
-
-
-function createVoxelMesh(voxelData, size) {
+export function createVoxelTextureAndMesh(voxelData, size) {
     // Create the 3D voxelTexture
     const voxelTexture = new THREE.Data3DTexture(voxelData, size.x, size.y, size.z);
     voxelTexture.format = THREE.RGBAFormat;
@@ -73,9 +63,8 @@ function createVoxelMesh(voxelData, size) {
     });
 
     const voxelMesh = new THREE.Mesh(boxGeometry, voxelMaterial);
-    return voxelMesh
+    return { voxelMesh, voxelTexture, voxelMaterial }
 }
 
-
-export default { processVoxelFile, createVoxelMesh };
+export default { loadVoxFile, createVoxelTextureAndMesh };
 
