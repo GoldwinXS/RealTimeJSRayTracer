@@ -166,22 +166,6 @@ export var FirstPersonCameraControls = function (camera) {
         return { oldYawRotation, oldPitchRotation, cameraIsMoving }
     }
 
-    function handleChangeFOV(event, FOVSettings) {
-        if (FOVSettings.isPaused)
-            return;
-
-        event.stopPropagation();
-
-        if (event.deltaY > 0) {
-            FOVSettings.increaseFOV = true;
-            FOVSettings.dollyCameraOut = true;
-        }
-        else if (event.deltaY < 0) {
-            FOVSettings.decreaseFOV = true;
-            FOVSettings.dollyCameraIn = true;
-        }
-    }
-
     this.addEventListeners = function (sceneSettings) {
         document.addEventListener('keydown', this.onKeyDown, false);
         document.addEventListener('keyup', this.onKeyUp, false);

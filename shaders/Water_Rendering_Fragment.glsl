@@ -7,6 +7,7 @@ uniform mat4 uShortBoxInvMatrix;
 uniform mat4 uTallBoxInvMatrix;
 uniform mat4 uVoxelMeshInvMatrix;
 uniform sampler3D voxelTexture;
+uniform vec3 uVoxelGridSize;
 
 #include <pathtracing_uniforms_and_defines>
 
@@ -80,8 +81,8 @@ void getTandDeltaT(inout float t, inout float deltaT, float rayDirection, float 
 	// Only scalar values in this function, since the same logic applies to all axies but we need to repeat it for all 
 
 	// if the ray direction in this axis is negative...
-	if(rayDirection < 0.0) {
-		// We need to flip the sign by adding a (+) 
+	if(rayDirection <= 0.0) {
+		// We need to flip the sign by adding a (-) 
 		deltaT = -gridDimension / rayDirection;
 		// floor(rayOrigGrid / cellDimension) normalizes the ray's origin to cell number
 		// for example, if the ray is at 3.1 and our cells have a dimension of 3 then we know that we are in cell floor(3.1/3) -> 1
@@ -98,7 +99,7 @@ void getTandDeltaT(inout float t, inout float deltaT, float rayDirection, float 
 ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 	localRayDir = normalize(localRayDir);
 	// gridResolution is number of cells in each dimension and should be integer values (0, 1, 2, ...)
-	ivec3 gridResolution = ivec3(voxelGridSize);
+	ivec3 gridResolution = ivec3(uVoxelGridSize.x, uVoxelGridSize.y, uVoxelGridSize.z);
 	// Convert worldspace coords which can be -ve coords to all +ve coords by subtracting min corner
 	// If max=1 and min=-1 then our new max will be 1 - (-1) = 2
 	vec3 gridMax = boxes[3].maxCorner - boxes[3].minCorner;
@@ -110,7 +111,7 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 
 	// gridDimension is the overall size of the grid, which if centered at the origin, is just gridMax. 
 	// It should be in world dimensions, for example: 1.453
-	vec3 gridDimension = vec3(voxelGridSize * voxelSize);
+	vec3 gridDimension = vec3(uVoxelGridSize.x, uVoxelGridSize.y, uVoxelGridSize.z) * voxelSize;
 	// cellDimension is the size of each cell in the grid. Since we're at the origin, gridMin is 0, so it is just:
 	vec3 cellDimension = gridMax / vec3(gridResolution);
 	// Initialize our delta T and next crossing 
@@ -126,7 +127,7 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 	float stepSize = 0.0;
 	ivec3 cellIndex = ivec3(floor(rayOrigGrid / cellDimension));
 
-	int MAX_CHECKS = 100;
+	int MAX_CHECKS = 1000;
 
 	for(int check = 0; check < MAX_CHECKS; check++) {
 
@@ -137,7 +138,7 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 			return ivec3(-1);
 		}
 		// Check if we have hit a voxel
-		float alphaValue = texture(voxelTexture, vec3(cellIndex) / float(voxelGridSize - 1.0)).a;
+		float alphaValue = texture(voxelTexture, vec3(cellIndex) / uVoxelGridSize).a;
 		if(alphaValue > 0.0) {
 			return cellIndex;
 		}
@@ -255,7 +256,7 @@ float SceneIntersect(int checkWater)
 	if(d < t) {
 		hitColor = vec3(0.86, 0.25, 0.25);
 		// If we have a hit with the volume, then translate the ray so that it is touching the box 
-		rObjOrigin += d * rObjDirection * 1.00001;
+		rObjOrigin += d * rObjDirection * 1.0001;
 		// Get the position the voxel was hit at between 0 and voxelGridZise
 		ivec3 voxelCoords = getVoxelPosition(rObjDirection, rObjOrigin);
 		// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
@@ -263,7 +264,7 @@ float SceneIntersect(int checkWater)
 			t = d;
 
 			// Scale voxel coordinate space to voxel model space 
-			vec3 voxelPosition = vec3(voxelCoords) * ((boxes[3].maxCorner - boxes[3].minCorner) / voxelGridSize);
+			vec3 voxelPosition = vec3(voxelCoords) * ((boxes[3].maxCorner - boxes[3].minCorner)) / uVoxelGridSize;
 			// Transform the voxel position by min corner, that is the voxel's min corner
 			vec3 voxelMinCorner = voxelPosition + boxes[3].minCorner;
 			vec3 voxelMaxCorner = voxelMinCorner + voxelSize;
@@ -274,7 +275,7 @@ float SceneIntersect(int checkWater)
 			t = d;
 			hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
 			hitEmission = vec3(0.0);
-			hitColor = texture(voxelTexture, vec3(voxelCoords) / float(voxelGridSize - 1.0)).rbg;
+			hitColor = texture(voxelTexture, vec3(voxelCoords) / uVoxelGridSize).rbg;
 			hitType = boxes[3].type;
 			hitObjectID = float(objectCount);
 			vec3 voxelCoordsObj = vec3(voxelCoords) + boxes[3].minCorner;
@@ -571,7 +572,8 @@ void SetupScene(void)
 	boxes[0] = Box(vec3(-82.0, -170.0, -80.0), vec3(82.0, 170.0, 80.0), z, vec3(1), SPEC);// Tall Mirror Box Left
 	boxes[1] = Box(vec3(-86.0, -85.0, -80.0), vec3(86.0, 85.0, 80.0), z, vec3(0.2, 0.8, 0.2), DIFF);// Short Diffuse Box Right
 	boxes[2] = Box(vec3(0, 0, -1000), vec3(2000, 1000, 0), z, vec3(1), DIFF);// the Cornell Box interior 
-	boxes[3] = Box(vec3(-voxelGridSize * voxelSize * 0.5), vec3(voxelGridSize * voxelSize * 0.5), z, vec3(1), DIFF);// Voxels
+	// uVoxelGridSize.x is WRONG
+	boxes[3] = Box(vec3(-uVoxelGridSize.x * voxelSize * 0.5), vec3(uVoxelGridSize.x * voxelSize * 0.5), z, vec3(1), DIFF);// Voxels
 
 	quads[0] = Quad(vec3(0.0, -1.0, 0.0), vec3(213.0, 548.0, -332.0), vec3(843.0, 548.0, -332.0), vec3(343.0, 548.0, -227.0), vec3(213.0, 548.0, -227.0), L1, z, LIGHT);// Area Light Rectangle in ceiling
 }	
@@ -658,8 +660,8 @@ void main(void) {
 
 		previousPixel.a = 0.0;
 	} else {
-		previousPixel.rgb *= 0.9; // motion-blur trail amount (old image)
-		currentPixel.rgb *= 0.1; // brightness of new image (noisy)
+		previousPixel.rgb *= 0.8; // motion-blur trail amount (old image)
+		currentPixel.rgb *= 0.2; // brightness of new image (noisy)
 	}
 
 	// if current raytraced pixel didn't return any color value, just use the previous frame's pixel color

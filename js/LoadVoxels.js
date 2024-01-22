@@ -8,22 +8,47 @@ function calculateIndex(x, y, z, size) {
 
 export function processVoxData(voxData) {
     const size = voxData.size;
-    const voxelData = new Uint8Array(size * size * size * 4); // 4 for RGBA
+    const voxelData = new Uint8Array(size.x * size.y * size.z * 4); // 4 for RGBA
 
-    for (let i = 0; i < voxData.xyzi.numVoxels; i += 4) {
-        voxelData[i + 3] = 0; // Alpha channel
+    // Initialize alpha channel for each voxel
+    for (let i = 0; i < size.x * size.y * size.z; i++) {
+        voxelData[i * 4 + 3] = 0; // Set alpha to opaque
     }
 
+    // Process each voxel
     voxData.xyzi.values.forEach(voxel => {
-        const { x, y, z, i } = voxel
-        const { r, b, g, a } = voxData.rgba.values[i]
+        const { x, y, z, i } = voxel;
+        // Adjust color index (i) as VOX color palette starts from index 1
+        const colorIndex = i - 1;
+        const { r, g, b, a } = voxData.rgba.values[colorIndex];
         const index = calculateIndex(x, y, z, size.x);
         voxelData[index + 0] = r; // Red
         voxelData[index + 1] = g; // Green
         voxelData[index + 2] = b; // Blue
-        voxelData[index + 3] = a; // Alpha (opaque)
-    })
-    return voxelData
+        voxelData[index + 3] = a; // Alpha
+    });
+
+    return voxelData;
+}
+
+
+// Function to create test voxel data
+export function createTestVoxelData(size) {
+    const voxelData = new Uint8Array(size.x * size.y * size.z * 4); // 4 for RGBA
+
+    for (let z = 0; z < size.z; z++) {
+        for (let y = 0; y < size.y; y++) {
+            for (let x = 0; x < size.x; x++) {
+                const index = calculateIndex(x, y, z, size.x);
+                voxelData[index + 0] = x * 85;  // Red (gradually increasing)
+                voxelData[index + 1] = y * 85;  // Green (gradually increasing)
+                voxelData[index + 2] = z * 85;  // Blue (gradually increasing)
+                voxelData[index + 3] = 255;     // Alpha (opaque)
+            }
+        }
+    }
+
+    return voxelData;
 }
 
 export async function loadVoxFile(filePath) {
@@ -31,15 +56,12 @@ export async function loadVoxFile(filePath) {
         const response = await fetch(filePath);
         const buffer = await response.arrayBuffer();
         const voxData = readVox(new Uint8Array(buffer));
-        console.log('VOX Data:', voxData);
-        // Process VOX data here
         const size = voxData.size;
         return { voxData, size };
     } catch (error) {
         console.error('Error fetching VOX data:', error);
     }
 }
-
 
 export function createVoxelTextureAndMesh(voxelData, size) {
     // Create the 3D voxelTexture
@@ -51,6 +73,8 @@ export function createVoxelTextureAndMesh(voxelData, size) {
     voxelTexture.magFilter = THREE.NearestFilter;
     voxelTexture.unpackAlignment = 1;
     voxelTexture.needsUpdate = true;
+    voxelTexture.generateMipmaps = false
+
 
     // Create a box geometry that encompasses the voxel space
     const boxGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
@@ -66,5 +90,5 @@ export function createVoxelTextureAndMesh(voxelData, size) {
     return { voxelMesh, voxelTexture, voxelMaterial }
 }
 
-export default { loadVoxFile, createVoxelTextureAndMesh };
+export default { loadVoxFile, createVoxelTextureAndMesh, createTestVoxelData };
 

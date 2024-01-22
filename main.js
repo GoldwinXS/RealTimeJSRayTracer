@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { loadVoxFile, createVoxelTextureAndMesh, processVoxData } from './js/LoadVoxels';
+import { loadVoxFile, createVoxelTextureAndMesh, createTestVoxelData, processVoxData } from './js/LoadVoxels';
 import { onWindowResize } from './js/WindowEvents';
 import { sceneSettings } from './settings';
 import {
@@ -50,10 +50,8 @@ function initSceneData(sceneSettings) {
 
     // Set or change any needed scene data
     sceneSettings.sceneIsDynamic = true;
-    sceneSettings.pixelRatio = window.mouseControl ? 1.0 : 0.8;
+    sceneSettings.pixelRatio = 2;
     sceneSettings.EPS_intersect = 0.01;
-
-
 
     createConfiguredMesh(sceneSettings.tallBox, [1, 1, 1], {
         color: new THREE.Color(0.95, 0.95, 0.95),
@@ -77,7 +75,10 @@ function initSceneData(sceneSettings) {
 
 
     sceneSettings.voxels.mesh.visible = false;
-    sceneSettings.voxels.mesh.rotation.set(0, -Math.PI * 0.09, 0);
+    const degree = -90;
+    const radians = degree * (Math.PI / 180); // Convert degrees to radians
+
+    sceneSettings.voxels.mesh.rotation.x = radians;
     sceneSettings.voxels.mesh.position.set(200, 120, -200);
     sceneSettings.voxels.mesh.updateMatrixWorld(true); // 'true' forces immediate matrix update
 
@@ -122,7 +123,13 @@ function setupPathTracing(sceneSettings) {
 
     // Setup unchanging uniforms for the path tracing shader.
     setupUniforms(sceneSettings)
-
+    sceneSettings.pathTracing.uniforms.uVoxelGridSize = {
+        type: "vec3", value: new THREE.Vector3(
+            sceneSettings.voxels.size.x,
+            sceneSettings.voxels.size.y,
+            sceneSettings.voxels.size.z
+        )
+    }
     // Path Tracing Shader
     loadShaderAndCreateMesh(sceneSettings, {
         vertexShaderPath: 'shaders/common_PathTracing_Vertex.glsl',
@@ -134,7 +141,6 @@ function setupPathTracing(sceneSettings) {
         depthWrite: false,
         specialHandling: (mesh) => sceneSettings.worldCamera.add(mesh)
     });
-
     // Screen Copy Shader
     loadShaderAndCreateMesh(sceneSettings, {
         vertexShaderPath: 'shaders/common_PathTracing_Vertex.glsl',
@@ -145,7 +151,6 @@ function setupPathTracing(sceneSettings) {
         depthTest: false,
         depthWrite: false
     });
-
     // Screen Output Shader
     loadShaderAndCreateMesh(sceneSettings, {
         vertexShaderPath: 'shaders/common_PathTracing_Vertex.glsl',
@@ -156,6 +161,7 @@ function setupPathTracing(sceneSettings) {
         depthTest: false,
         depthWrite: false
     });
+
     setCameraInfoElementStyle(sceneSettings.cameraInfoElement)
 
     // this 'jumpstarts' the initial dimensions and parameters for the window and renderer
@@ -194,6 +200,8 @@ function animate() {
     // Update scene specific uniforms
     sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix.value.copy(sceneSettings.tallBox.mesh.matrixWorld).invert();
     sceneSettings.pathTracing.uniforms.uShortBoxInvMatrix.value.copy(sceneSettings.shortBox.mesh.matrixWorld).invert();
+    sceneSettings.voxels.mesh.rotation.y = sceneSettings.voxels.mesh.rotation.y + 0.001
+    sceneSettings.voxels.mesh.rotation.z = sceneSettings.voxels.mesh.rotation.z + 0.001
     sceneSettings.pathTracing.uniforms.uVoxelMeshInvMatrix.value.copy(sceneSettings.voxels.mesh.matrixWorld).invert();
 
 
@@ -276,7 +284,9 @@ async function loadFilesAndStart(sceneSettings) {
     try {
         const { voxData, size } = await loadVoxFile('./models/castle.vox');
         const voxelData = processVoxData(voxData)
+        // const voxelData = createTestVoxelData(size)
         const { voxelMesh, voxelTexture, voxelMaterial } = createVoxelTextureAndMesh(voxelData, size);
+        sceneSettings.voxels.size = size
         sceneSettings.voxels.mesh = voxelMesh
         sceneSettings.material = voxelMaterial
         sceneSettings.voxels.texture = voxelTexture

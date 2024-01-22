@@ -17,6 +17,7 @@ export const sceneSettings = {
         material: null,
         mesh: null,
         texture: null,
+        size: null
     },
 
     // Path Tracing Elements
