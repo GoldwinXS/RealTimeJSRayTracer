@@ -6,6 +6,35 @@ import { FirstPersonCameraControls } from './FirstPersonCameraControls';
 
 // scene/demo-specific variables go here
 
+// Give names to things for easier identification
+sceneSettings.screenCopy.scene.name = "screenCopy.scene"
+sceneSettings.screenOutput.scene.name = "screenOutput.scene"
+sceneSettings.pathTracing.scene.name = "pathTracing.scene"
+
+sceneSettings.screenCopy.geometry.name = "screenCopy.geometry"
+sceneSettings.screenOutput.geometry.name = "screenOutput.geometry"
+sceneSettings.pathTracing.geometry.name = "pathTracing.geometry"
+
+function setupControls(sceneSettings) {
+    sceneSettings.controls = new FirstPersonCameraControls(sceneSettings.worldCamera);
+
+    // Initialize Controls
+    sceneSettings.controls.name = "controls"
+    sceneSettings.controls.isPaused = false
+    sceneSettings.controls.addEventListeners()
+    // Set up Camera Controls
+    sceneSettings.cameraControls.object = sceneSettings.controls.getObject();
+    sceneSettings.cameraControls.yawObject = sceneSettings.controls.getYawObject();
+    sceneSettings.cameraControls.pitchObject = sceneSettings.controls.getPitchObject();
+    sceneSettings.cameraControls.object.name = "cameraControls.object"
+    sceneSettings.cameraControls.yawObject.name = "cameraControls.yawObject"
+    sceneSettings.cameraControls.pitchObject.name = "cameraControls.pitchObject"
+    sceneSettings.cameraControls.object.position.set(96, 397, 278);
+    sceneSettings.cameraControls.yawObject.rotation.y = -0.3;
+    sceneSettings.cameraControls.pitchObject.rotation.x = -0.45;
+}
+
+
 function initSceneData(sceneSettings) {
     // Initialize Renderer and Context
     sceneSettings.renderer = new THREE.WebGLRenderer({ canvas: sceneSettings.canvas, context: sceneSettings.canvas.getContext('webgl2') });
@@ -20,33 +49,11 @@ function initSceneData(sceneSettings) {
     // Initialize Debug Mesh
     sceneSettings.debug.mesh = new THREE.Mesh(sceneSettings.debug.geometry, sceneSettings.debug.material);
 
-    // Initialize Controls
-    sceneSettings.controls = new FirstPersonCameraControls(sceneSettings.worldCamera);
-    sceneSettings.controls.isPaused = false
-    sceneSettings.controls.addEventListeners()
-    // Set up Camera Controls
-    sceneSettings.cameraControls.object = sceneSettings.controls.getObject();
-    sceneSettings.cameraControls.yawObject = sceneSettings.controls.getYawObject();
-    sceneSettings.cameraControls.pitchObject = sceneSettings.controls.getPitchObject();
-
-    sceneSettings.pathTracing.scene = new THREE.Scene();
-    sceneSettings.screenCopy.scene = new THREE.Scene();
-    sceneSettings.screenOutput.scene = new THREE.Scene();
 
     // Add worldCamera to pathTracing.scene
     sceneSettings.pathTracing.scene.add(sceneSettings.worldCamera);
 
-    // Debugging: Simple Scene Setup
-    sceneSettings.debug.scene = new THREE.Scene();
-    sceneSettings.debug.geometry = new THREE.BoxGeometry(1, 1, 1); // Simple box geometry
-    sceneSettings.debug.material = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // Green color for visibility
-    sceneSettings.debug.mesh = new THREE.Mesh(sceneSettings.debug.geometry, sceneSettings.debug.material);
-
-
     sceneSettings.debug.material = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // Green color
-    sceneSettings.pathTracing.scene.add(sceneSettings.debug.mesh); // Add the debug mesh to the scene
-
-    sceneSettings.debug.scene.add(sceneSettings.debug.mesh);
 
     // Set or change any needed scene data
     sceneSettings.sceneIsDynamic = true;
@@ -65,8 +72,6 @@ function initSceneData(sceneSettings) {
     sceneSettings.tallBox.mesh.rotation.set(0, Math.PI * 0.1, 0);
     sceneSettings.tallBox.mesh.position.set(180, 170, -350);
     sceneSettings.tallBox.mesh.updateMatrixWorld(true); // 'true' forces immediate matrix update
-
-
     sceneSettings.shortBox.geometry = new THREE.BoxGeometry(1, 1, 1);
     sceneSettings.shortBox.material = new THREE.MeshPhysicalMaterial({
         color: new THREE.Color(0.55, 0.95, 0.55), //RGB, ranging from 0.0 - 1.0
@@ -85,23 +90,12 @@ function initSceneData(sceneSettings) {
     // voxelMesh.position.set(200, 120, -200);
     // voxelMesh.updateMatrixWorld(true); // 'true' forces immediate matrix update
 
-
     // Add meshes.
     sceneSettings.pathTracing.scene.add(sceneSettings.shortBox.mesh);
     // pathTracing.scene.add(voxelMesh)
     sceneSettings.pathTracing.scene.add(sceneSettings.tallBox.mesh);
 
-    // controls: null,
-    // cameraControls: {
-    //     object: null,
-    //     yawObject: null,
-    //     pitchObject: null
-    // },
-    // position and orient camera
-    sceneSettings.cameraControls.object.position.set(96, 397, 278);
-    sceneSettings.cameraControls.yawObject.rotation.y = -0.3;
-    sceneSettings.cameraControls.pitchObject.rotation.x = -0.45;
-
+    setupControls(sceneSettings)
     // scene/demo-specific uniforms go here
     sceneSettings.pathTracing.uniforms.uShortBoxInvMatrix = { value: new THREE.Matrix4() };
     sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix = { value: new THREE.Matrix4() };
@@ -109,13 +103,11 @@ function initSceneData(sceneSettings) {
     sceneSettings.pathTracing.uniforms.uVoxelMeshInvMatrix = { value: new THREE.Matrix4() };
     sceneSettings.pathTracing.uniforms.voxelTexture = { value: LoadVoxels.voxelTexture }
     // pathTracing.uniforms.uVoxelMeshInvMatrix.value.copy(voxelMesh.matrixWorld).invert();
-
-    // return { voxelMesh }
 }
+initSceneData(sceneSettings);
 
 function setupPathTracing(sceneSettings) {
     // setup scene/demo-specific objects, variables, GUI elements, and data
-    initSceneData(sceneSettings);
     // REDMINDER: set to false for production
     sceneSettings.renderer.debug.checkShaderErrors = true;
     sceneSettings.renderer.autoClear = false;
@@ -154,19 +146,13 @@ function setupPathTracing(sceneSettings) {
     });
     sceneSettings.screenCopy.renderTarget.texture.generateMipmaps = false;
 
-
-
-
     // setup screen-size quad geometry and shaders....
     // this full-screen quad mesh performs the path tracing operations and produces a screen-sized image
     sceneSettings.pathTracing.uniforms.tPreviousTexture = { type: "t", value: sceneSettings.screenCopy.renderTarget.texture };
     sceneSettings.pathTracing.uniforms.tBlueNoiseTexture = { type: "t", value: sceneSettings.blueNoiseTexture };
-
     sceneSettings.pathTracing.uniforms.uCameraMatrix = { type: "m4", value: new THREE.Matrix4() };
-
     sceneSettings.pathTracing.uniforms.uResolution = { type: "v2", value: new THREE.Vector2() };
     sceneSettings.pathTracing.uniforms.uRandomVec2 = { type: "v2", value: new THREE.Vector2() };
-
     sceneSettings.pathTracing.uniforms.uEPS_intersect = { type: "f", value: sceneSettings.EPS_intersect };
     sceneSettings.pathTracing.uniforms.uTime = { type: "f", value: 0.0 };
     sceneSettings.pathTracing.uniforms.uSampleCounter = { type: "f", value: 0.0 }; //0.0
@@ -176,7 +162,6 @@ function setupPathTracing(sceneSettings) {
     sceneSettings.pathTracing.uniforms.uVLen = { type: "f", value: 1.0 };
     sceneSettings.pathTracing.uniforms.uApertureSize = { type: "f", value: sceneSettings.apertureSize };
     sceneSettings.pathTracing.uniforms.uFocusDistance = { type: "f", value: sceneSettings.focusDistance };
-
     sceneSettings.pathTracing.uniforms.uCameraIsMoving = { type: "b1", value: false };
     sceneSettings.pathTracing.uniforms.uUseOrthographicCamera = { type: "b1", value: false };
 
@@ -275,26 +260,28 @@ function animate() {
     sceneSettings.frameTime = sceneSettings.clock.getDelta();
 
     sceneSettings.elapsedTime = sceneSettings.clock.getElapsedTime() % 1000;
-    // console.log(sceneSettings.worldCamera.position)
 
     // reset flags
     sceneSettings.cameraIsMoving = false;
-    sceneSettings.controls.handleInput(
-        sceneSettings.cameraIsMoving,
-        sceneSettings.frameTime,
-        sceneSettings.cameraFlightSpeed,
-        sceneSettings.cameraDirectionVector,
-        sceneSettings.cameraRightVector,
-        sceneSettings.cameraUpVector
-    )
+
     // if GUI has been used, update
     if (sceneSettings.needChangePixelResolution) {
         onWindowResize();
     }
 
-    if (sceneSettings.windowIsBeingResized) {
-        sceneSettings.cameraIsMoving = true;
-        sceneSettings.windowIsBeingResized = false;
+
+    // check user controls
+    if (sceneSettings.mouseControl) {
+        // movement detected
+        if (sceneSettings.oldYawRotation != sceneSettings.cameraControls.yawObject.rotation.y ||
+            sceneSettings.oldPitchRotation != sceneSettings.cameraControls.pitchObject.rotation.x) {
+            sceneSettings.cameraIsMoving = true;
+        }
+
+        // save state for next frame
+        sceneSettings.oldYawRotation = sceneSettings.cameraControls.yawObject.rotation.y;
+        sceneSettings.oldPitchRotation = sceneSettings.cameraControls.pitchObject.rotation.x;
+
     }
 
     // this gives us a vector in the direction that the camera is pointing,
@@ -306,15 +293,63 @@ function animate() {
     sceneSettings.controls.getRightVector(sceneSettings.cameraRightVector);
     sceneSettings.cameraRightVector.normalize();
 
+
+    sceneSettings.controls.handleInput(
+        sceneSettings
+    )
+
+
+
     // the following gives us a rotation quaternion (4D vector), which will be useful for 
     // rotating scene objects to match the camera's rotation
     sceneSettings.worldCamera.getWorldQuaternion(sceneSettings.cameraWorldQuaternion);
+
+
+    // scene/demo-specific uniforms
+    // BOXES
+    sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix.value.copy(sceneSettings.tallBox.mesh.matrixWorld).invert();
+    sceneSettings.pathTracing.uniforms.uShortBoxInvMatrix.value.copy(sceneSettings.shortBox.mesh.matrixWorld).invert();
+    let cameraInfoElement = document.getElementById('cameraInfo');
+    cameraInfoElement.style.cursor = "default";
+    cameraInfoElement.style.userSelect = "none";
+    cameraInfoElement.style.MozUserSelect = "none";
+
+    // INFO
+    cameraInfoElement.innerHTML = "FOV: " + sceneSettings.worldCamera.fov + " / Aperture: " + sceneSettings.apertureSize.toFixed(2) + " / FocusDistance: " + sceneSettings.focusDistance + "<br>" + "Samples: " + sceneSettings.sampleCounter;
+
+    // now update uniforms that are common to all scenes
+    if (!sceneSettings.cameraIsMoving) {
+        if (sceneSettings.sceneIsDynamic)
+            sceneSettings.sampleCounter = 1.0; // reset for continuous updating of image
+        else sceneSettings.sampleCounter += 1.0; // for progressive refinement of image
+
+        sceneSettings.frameCounter += 1.0;
+
+        sceneSettings.cameraRecentlyMoving = false;
+    }
 
     sceneSettings.pathTracing.uniforms.uTime.value = sceneSettings.elapsedTime;
     sceneSettings.pathTracing.uniforms.uCameraIsMoving.value = sceneSettings.cameraIsMoving;
     sceneSettings.pathTracing.uniforms.uSampleCounter.value = sceneSettings.sampleCounter;
     sceneSettings.pathTracing.uniforms.uFrameCounter.value = sceneSettings.frameCounter;
     sceneSettings.pathTracing.uniforms.uRandomVec2.value.set(Math.random(), Math.random());
+
+    if (sceneSettings.windowIsBeingResized) {
+        sceneSettings.cameraIsMoving = true;
+        sceneSettings.windowIsBeingResized = false;
+    }
+
+    if (sceneSettings.cameraIsMoving) {
+        sceneSettings.frameCounter += 1.0;
+
+        if (!sceneSettings.cameraRecentlyMoving) {
+            // record current sampleCounter before it gets set to 1.0 below
+            sceneSettings.pathTracing.uniforms.uPreviousSampleCount.value = sceneSettings.sampleCounter;
+            sceneSettings.frameCounter = 1.0;
+            sceneSettings.cameraRecentlyMoving = true;
+        }
+        sceneSettings.sampleCounter = 1.0;
+    }
 
     // CAMERA
     sceneSettings.cameraControls.object.updateMatrixWorld(true);
@@ -324,17 +359,6 @@ function animate() {
     sceneSettings.screenOutput.uniforms.uSampleCounter.value = sceneSettings.sampleCounter;
     // PROGRESSIVE SAMPLE WEIGHT (reduces intensity of each successive animation frame's image)
     sceneSettings.screenOutput.uniforms.uOneOverSampleCounter.value = 1.0 / sceneSettings.sampleCounter;
-
-    // Debugging: Render the simple debug scene instead of the actual scene
-    // Position the camera so that it's looking at the debug mesh
-    // sceneSettings.worldCamera.position.set(0, 10, 15);
-    // sceneSettings.worldCamera.lookAt(sceneSettings.debug.mesh.position);
-    // sceneSettings.renderer.clear()
-    // sceneSettings.renderer.render(sceneSettings.debug.scene, sceneSettings.worldCamera)
-
-    sceneSettings.renderer.setRenderTarget(null); // Render to the screen
-    sceneSettings.renderer.clear(); // Clear previous frame
-    sceneSettings.renderer.render(sceneSettings.screenOutput.scene, sceneSettings.quadCamera);
 
     // // RENDERING in 3 steps
 
@@ -380,7 +404,7 @@ function startApp() {
             texture.minFilter = THREE.NearestFilter;
             texture.magFilter = THREE.NearestFilter;
             texture.generateMipmaps = false;
-            setupPathTracing(sceneSettings); // boilerplate: init necessary three.js items and scene/demo-specific objects
+            setupPathTracing(sceneSettings);
         }
     );
 }

@@ -119,11 +119,17 @@ export var FirstPersonCameraControls = function (camera) {
         KeyboardState[event.code] = false;
     }
 
-    this.handleInput = function (cameraIsMoving, frameTime, cameraFlightSpeed, cameraDirectionVector, cameraRightVector, cameraUpVector) {
+    this.handleInput = function (sceneSettings) {
         if (this.isPaused) {
             return false
         }
-        let cameraControlsObject = this.getObject()
+        let cameraControlsObject = sceneSettings.cameraControls.object
+        let cameraDirectionVector = sceneSettings.cameraDirectionVector
+        let cameraFlightSpeed = sceneSettings.cameraFlightSpeed
+        let cameraIsMoving = sceneSettings.cameraIsMoving
+        let frameTime = sceneSettings.frameTime
+        let cameraRightVector = sceneSettings.cameraRightVector
+        let cameraUpVector = sceneSettings.cameraUpVector
         if ((keyPressed('KeyW'))) {
             cameraControlsObject.position.add(cameraDirectionVector.multiplyScalar(cameraFlightSpeed * frameTime));
             cameraIsMoving = true;
@@ -148,7 +154,7 @@ export var FirstPersonCameraControls = function (camera) {
             cameraControlsObject.position.sub(cameraUpVector.multiplyScalar(cameraFlightSpeed * frameTime));
             cameraIsMoving = true;
         }
-        return cameraIsMoving
+        sceneSettings.cameraIsMoving = cameraIsMoving
     }
 
 

@@ -1,26 +1,5 @@
 import sceneSettings from "./settings";
 
-// The following list of keys is not exhaustive, but it should be more than enough to build interactive demos and games
-let KeyboardState = {
-    KeyA: false, KeyB: false, KeyC: false, KeyD: false, KeyE: false, KeyF: false, KeyG: false, KeyH: false, KeyI: false, KeyJ: false, KeyK: false, KeyL: false, KeyM: false,
-    KeyN: false, KeyO: false, KeyP: false, KeyQ: false, KeyR: false, KeyS: false, KeyT: false, KeyU: false, KeyV: false, KeyW: false, KeyX: false, KeyY: false, KeyZ: false,
-    ArrowLeft: false, ArrowUp: false, ArrowRight: false, ArrowDown: false, Space: false, Enter: false, PageUp: false, PageDown: false, Tab: false,
-    Minus: false, Equal: false, BracketLeft: false, BracketRight: false, Semicolon: false, Quote: false, Backquote: false,
-    Comma: false, Period: false, ShiftLeft: false, ShiftRight: false, Slash: false, Backslash: false, Backspace: false,
-    Digit1: false, Digit2: false, Digit3: false, Digit4: false, Digit5: false, Digit6: false, Digit7: false, Digit8: false, Digit9: false, Digit0: false
-}
-
-
-export function onKeyDown(event) {
-    event.preventDefault();
-    KeyboardState[event.code] = true;
-}
-
-export function onKeyUp(event) {
-    event.preventDefault();
-    KeyboardState[event.code] = false;
-}
-
 // eslint-disable-next-line no-unused-vars
 export function onWindowResize(event) {
 

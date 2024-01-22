@@ -50,6 +50,8 @@ export const sceneSettings = {
     },
 
     // General Settings and Utilities
+    oldYawRotation: null,
+    oldPitchRotation: null,
     isPaused: true,
     blueNoiseTexture: null,
     container: null,
@@ -67,6 +69,7 @@ export const sceneSettings = {
     demoFragmentShaderFileName: 'Water_Rendering_Fragment.glsl',
     worldCamera: new THREE.PerspectiveCamera(60, document.body.clientWidth / document.body.clientHeight, 1, 1000),
     cameraRotationSpeed: 1,
+    cameraFlightSpeed: 300,
     PI_2: Math.PI / 2,
     controls: null,
     cameraControls: {
@@ -96,10 +99,11 @@ export const sceneSettings = {
         scene: new THREE.Scene(),
         geometry: new THREE.BoxGeometry(1, 1, 1),
         material: new THREE.MeshBasicMaterial({ color: 0x00ff00 }),
-        mesh: null
+        mesh: new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0x00ff00 }))
     },
     clock: new THREE.Clock()
 
 };
+
 
 export default sceneSettings 

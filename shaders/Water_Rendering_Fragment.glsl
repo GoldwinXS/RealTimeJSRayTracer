@@ -6,7 +6,7 @@ precision highp sampler3D;
 uniform mat4 uShortBoxInvMatrix;
 uniform mat4 uTallBoxInvMatrix;
 uniform mat4 uVoxelMeshInvMatrix;
-uniform sampler3D voxelTexture;
+// uniform sampler3D voxelTexture;
 
 #include <pathtracing_uniforms_and_defines>
 
@@ -188,10 +188,10 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 			return ivec3(-1);
 		}
 		// Check if we have hit a voxel
-		float alphaValue = texture(voxelTexture, vec3(cellIndex) / float(voxelGridSize - 1.0)).a;
-		if(alphaValue > 0.0) {
-			return cellIndex;
-		}
+		// float alphaValue = texture(voxelTexture, vec3(cellIndex) / float(voxelGridSize - 1.0)).a;
+		// if(alphaValue > 0.0) {
+		// 	return cellIndex;
+		// }
 
 		// If we have not hit anything then continue to march
 		if(t.x < t.y && t.x < t.z) {
@@ -324,7 +324,7 @@ float SceneIntersect(int checkWater)
 			t = d;
 			hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
 			hitEmission = vec3(0.0);
-			hitColor = texture(voxelTexture, vec3(voxelCoords) / float(voxelGridSize - 1.0)).rbg;
+			// hitColor = texture(voxelTexture, vec3(voxelCoords) / float(voxelGridSize - 1.0)).rbg;
 			hitType = boxes[3].type;
 			hitObjectID = float(objectCount);
 			vec3 voxelCoordsObj = vec3(voxelCoords) + boxes[3].minCorner;
