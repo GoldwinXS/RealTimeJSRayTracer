@@ -6,14 +6,6 @@ import { FirstPersonCameraControls } from './FirstPersonCameraControls';
 
 // scene/demo-specific variables go here
 
-// Give names to things for easier identification
-sceneSettings.screenCopy.scene.name = "screenCopy.scene"
-sceneSettings.screenOutput.scene.name = "screenOutput.scene"
-sceneSettings.pathTracing.scene.name = "pathTracing.scene"
-
-sceneSettings.screenCopy.geometry.name = "screenCopy.geometry"
-sceneSettings.screenOutput.geometry.name = "screenOutput.geometry"
-sceneSettings.pathTracing.geometry.name = "pathTracing.geometry"
 
 function setupControls(sceneSettings) {
     sceneSettings.controls = new FirstPersonCameraControls(sceneSettings.worldCamera);
@@ -34,6 +26,90 @@ function setupControls(sceneSettings) {
     sceneSettings.cameraControls.pitchObject.rotation.x = -0.45;
 }
 
+function updateCameraVectors({ controls, camera }) {
+    // this gives us a vector in the direction that the camera is pointing,
+    // which will be useful for moving the camera 'forward' and shooting projectiles in that direction
+    controls.getDirection(camera.directionVector);
+    camera.directionVector.normalize();
+    controls.getUpVector(camera.upVector);
+    camera.upVector.normalize();
+    controls.getRightVector(camera.rightVector);
+    camera.rightVector.normalize();
+}
+
+function loadShaderAndCreateMesh(sceneSettings, shaderConfig) {
+    sceneSettings.fileLoader.load(shaderConfig.vertexShaderPath, function (vertexShaderText) {
+        sceneSettings.fileLoader.load(shaderConfig.fragmentShaderPath, function (fragmentShaderText) {
+            const material = new THREE.ShaderMaterial({
+                uniforms: shaderConfig.uniforms,
+                uniformsGroups: shaderConfig.uniformsGroups || [],
+                defines: shaderConfig.defines || {},
+                vertexShader: vertexShaderText,
+                fragmentShader: fragmentShaderText,
+                depthTest: shaderConfig.depthTest,
+                depthWrite: shaderConfig.depthWrite
+            });
+
+            const mesh = new THREE.Mesh(shaderConfig.geometry, material);
+            shaderConfig.scene.add(mesh);
+
+            // Special handling if needed (e.g., adding to camera)
+            if (shaderConfig.specialHandling) {
+                shaderConfig.specialHandling(mesh);
+            }
+        });
+    });
+}
+
+
+function setupUniforms({
+    pathTracing,
+    screenOutput,
+    screenCopy,
+    EPS_intersect,
+    apertureSize,
+    focusDistance,
+    pixelEdgeSharpness,
+    edgeSharpenSpeed,
+    filterDecaySpeed,
+    sceneIsDynamic,
+    useToneMapping
+}) {
+    // setup screen-size quad geometry and shaders....
+    // this full-screen quad mesh performs the path tracing operations and produces a screen-sized image
+    pathTracing.uniforms.tPreviousTexture = { type: "t", value: screenCopy.renderTarget.texture };
+    pathTracing.uniforms.tBlueNoiseTexture = { type: "t", value: sceneSettings.blueNoiseTexture };
+    pathTracing.uniforms.uCameraMatrix = { type: "m4", value: new THREE.Matrix4() };
+    pathTracing.uniforms.uResolution = { type: "v2", value: new THREE.Vector2() };
+    pathTracing.uniforms.uRandomVec2 = { type: "v2", value: new THREE.Vector2() };
+    pathTracing.uniforms.uEPS_intersect = { type: "f", value: EPS_intersect };
+    pathTracing.uniforms.uTime = { type: "f", value: 0.0 };
+    pathTracing.uniforms.uSampleCounter = { type: "f", value: 0.0 }; //0.0
+    pathTracing.uniforms.uPreviousSampleCount = { type: "f", value: 1.0 };
+    pathTracing.uniforms.uFrameCounter = { type: "f", value: 1.0 }; //1.0
+    pathTracing.uniforms.uULen = { type: "f", value: 1.0 };
+    pathTracing.uniforms.uVLen = { type: "f", value: 1.0 };
+    pathTracing.uniforms.uApertureSize = { type: "f", value: apertureSize };
+    pathTracing.uniforms.uFocusDistance = { type: "f", value: focusDistance };
+    pathTracing.uniforms.uCameraIsMoving = { type: "b1", value: false };
+    pathTracing.uniforms.uUseOrthographicCamera = { type: "b1", value: false };
+
+    screenOutput.uniforms = {
+        tPathTracedImageTexture: { type: "t", value: pathTracing.renderTarget.texture },
+        uSampleCounter: { type: "f", value: 0.0 },
+        uOneOverSampleCounter: { type: "f", value: 0.0 },
+        uPixelEdgeSharpness: { type: "f", value: pixelEdgeSharpness },
+        uEdgeSharpenSpeed: { type: "f", value: edgeSharpenSpeed },
+        uFilterDecaySpeed: { type: "f", value: filterDecaySpeed },
+        uSceneIsDynamic: { type: "b1", value: sceneIsDynamic },
+        uUseToneMapping: { type: "b1", value: useToneMapping }
+    };
+
+    screenCopy.uniforms = {
+        tPathTracedImageTexture: { type: "t", value: pathTracing.renderTarget.texture }
+    };
+
+}
 
 function initSceneData(sceneSettings) {
     // Initialize Renderer and Context
@@ -104,7 +180,22 @@ function initSceneData(sceneSettings) {
     sceneSettings.pathTracing.uniforms.voxelTexture = { value: LoadVoxels.voxelTexture }
     // pathTracing.uniforms.uVoxelMeshInvMatrix.value.copy(voxelMesh.matrixWorld).invert();
 }
+
 initSceneData(sceneSettings);
+
+function setupRenderTargets(context) {
+    // setup render targets...
+    let renderTarget = new THREE.WebGLRenderTarget(context.drawingBufferWidth, context.drawingBufferHeight, {
+        minFilter: THREE.NearestFilter,
+        magFilter: THREE.NearestFilter,
+        format: THREE.RGBAFormat,
+        type: THREE.FloatType,
+        depthBuffer: false,
+        stencilBuffer: false
+    });
+    renderTarget.texture.generateMipmaps = false;
+    return renderTarget
+}
 
 function setupPathTracing(sceneSettings) {
     // setup scene/demo-specific objects, variables, GUI elements, and data
@@ -125,231 +216,149 @@ function setupPathTracing(sceneSettings) {
     sceneSettings.screenOutput.scene.add(sceneSettings.quadCamera);
     sceneSettings.pathTracing.scene.add(sceneSettings.cameraControls.object);
 
-    // setup render targets...
-    sceneSettings.pathTracing.renderTarget = new THREE.WebGLRenderTarget(sceneSettings.context.drawingBufferWidth, sceneSettings.context.drawingBufferHeight, {
-        minFilter: THREE.NearestFilter,
-        magFilter: THREE.NearestFilter,
-        format: THREE.RGBAFormat,
-        type: THREE.FloatType,
-        depthBuffer: false,
-        stencilBuffer: false
-    });
-    sceneSettings.pathTracing.renderTarget.texture.generateMipmaps = false;
+    // Setup render targets.
+    sceneSettings.pathTracing.renderTarget = setupRenderTargets(sceneSettings.context)
+    sceneSettings.screenCopy.renderTarget = setupRenderTargets(sceneSettings.context)
 
-    sceneSettings.screenCopy.renderTarget = new THREE.WebGLRenderTarget(sceneSettings.context.drawingBufferWidth, sceneSettings.context.drawingBufferHeight, {
-        minFilter: THREE.NearestFilter,
-        magFilter: THREE.NearestFilter,
-        format: THREE.RGBAFormat,
-        type: THREE.FloatType,
-        depthBuffer: false,
-        stencilBuffer: false
-    });
-    sceneSettings.screenCopy.renderTarget.texture.generateMipmaps = false;
+    // Setup unchanging uniforms for the path tracing shader.
+    setupUniforms(sceneSettings)
 
-    // setup screen-size quad geometry and shaders....
-    // this full-screen quad mesh performs the path tracing operations and produces a screen-sized image
-    sceneSettings.pathTracing.uniforms.tPreviousTexture = { type: "t", value: sceneSettings.screenCopy.renderTarget.texture };
-    sceneSettings.pathTracing.uniforms.tBlueNoiseTexture = { type: "t", value: sceneSettings.blueNoiseTexture };
-    sceneSettings.pathTracing.uniforms.uCameraMatrix = { type: "m4", value: new THREE.Matrix4() };
-    sceneSettings.pathTracing.uniforms.uResolution = { type: "v2", value: new THREE.Vector2() };
-    sceneSettings.pathTracing.uniforms.uRandomVec2 = { type: "v2", value: new THREE.Vector2() };
-    sceneSettings.pathTracing.uniforms.uEPS_intersect = { type: "f", value: sceneSettings.EPS_intersect };
-    sceneSettings.pathTracing.uniforms.uTime = { type: "f", value: 0.0 };
-    sceneSettings.pathTracing.uniforms.uSampleCounter = { type: "f", value: 0.0 }; //0.0
-    sceneSettings.pathTracing.uniforms.uPreviousSampleCount = { type: "f", value: 1.0 };
-    sceneSettings.pathTracing.uniforms.uFrameCounter = { type: "f", value: 1.0 }; //1.0
-    sceneSettings.pathTracing.uniforms.uULen = { type: "f", value: 1.0 };
-    sceneSettings.pathTracing.uniforms.uVLen = { type: "f", value: 1.0 };
-    sceneSettings.pathTracing.uniforms.uApertureSize = { type: "f", value: sceneSettings.apertureSize };
-    sceneSettings.pathTracing.uniforms.uFocusDistance = { type: "f", value: sceneSettings.focusDistance };
-    sceneSettings.pathTracing.uniforms.uCameraIsMoving = { type: "b1", value: false };
-    sceneSettings.pathTracing.uniforms.uUseOrthographicCamera = { type: "b1", value: false };
-
-    // load vertex and fragment shader files that are used in the pathTracing material, mesh and scene
-    sceneSettings.fileLoader.load('shaders/common_PathTracing_Vertex.glsl', function (vertexShaderText) {
-        sceneSettings.pathTracing.vertexShader = vertexShaderText;
-        sceneSettings.fileLoader.load('shaders/' + sceneSettings.demoFragmentShaderFileName, function (fragmentShaderText) {
-
-            sceneSettings.pathTracing.fragmentShader = fragmentShaderText;
-
-            sceneSettings.pathTracing.material = new THREE.ShaderMaterial({
-                uniforms: sceneSettings.pathTracing.uniforms,
-                uniformsGroups: sceneSettings.pathTracing.uniformsGroups,
-                defines: sceneSettings.pathTracing.defines,
-                vertexShader: sceneSettings.pathTracing.vertexShader,
-                fragmentShader: sceneSettings.pathTracing.fragmentShader,
-                depthTest: false,
-                depthWrite: false
-            });
-
-            sceneSettings.pathTracing.mesh = new THREE.Mesh(sceneSettings.pathTracing.geometry, sceneSettings.pathTracing.material);
-            sceneSettings.pathTracing.scene.add(sceneSettings.pathTracing.mesh);
-
-            // the following keeps the large scene ShaderMaterial quad right in front 
-            //   of the camera at all times. This is necessary because without it, the scene 
-            //   quad will fall out of view and get clipped when the camera rotates past 180 degrees.
-            sceneSettings.worldCamera.add(sceneSettings.pathTracing.mesh);
-
-        });
+    // Path Tracing Shader
+    loadShaderAndCreateMesh(sceneSettings, {
+        vertexShaderPath: 'shaders/common_PathTracing_Vertex.glsl',
+        fragmentShaderPath: 'shaders/' + sceneSettings.demoFragmentShaderFileName,
+        uniforms: sceneSettings.pathTracing.uniforms,
+        geometry: sceneSettings.pathTracing.geometry,
+        scene: sceneSettings.pathTracing.scene,
+        depthTest: false,
+        depthWrite: false,
+        specialHandling: (mesh) => sceneSettings.worldCamera.add(mesh)
     });
 
-    // this full-screen quad mesh copies the image output of the pathtracing shader and feeds it back in to that shader as a 'previousTexture'
-    sceneSettings.screenCopy.geometry = new THREE.PlaneGeometry(2, 2);
-
-    sceneSettings.screenCopy.uniforms = {
-        tPathTracedImageTexture: { type: "t", value: sceneSettings.pathTracing.renderTarget.texture }
-    };
-
-    sceneSettings.fileLoader.load('shaders/ScreenCopy_Fragment.glsl', function (shaderText) {
-
-        sceneSettings.screenCopy.fragmentShader = shaderText;
-
-        sceneSettings.screenCopy.material = new THREE.ShaderMaterial({
-            uniforms: sceneSettings.screenCopy.uniforms,
-            vertexShader: sceneSettings.pathTracing.vertexShader,
-            fragmentShader: sceneSettings.screenCopy.fragmentShader,
-            depthWrite: false,
-            depthTest: false
-        });
-
-        sceneSettings.screenCopy.mesh = new THREE.Mesh(sceneSettings.screenCopy.geometry, sceneSettings.screenCopy.material);
-        sceneSettings.screenCopy.scene.add(sceneSettings.screenCopy.mesh);
+    // Screen Copy Shader
+    loadShaderAndCreateMesh(sceneSettings, {
+        vertexShaderPath: 'shaders/common_PathTracing_Vertex.glsl',
+        fragmentShaderPath: 'shaders/ScreenCopy_Fragment.glsl',
+        uniforms: sceneSettings.screenCopy.uniforms,
+        geometry: new THREE.PlaneGeometry(2, 2),
+        scene: sceneSettings.screenCopy.scene,
+        depthTest: false,
+        depthWrite: false
     });
 
-    // this full-screen quad mesh takes the image output of the path tracing shader (which is a continuous blend of the previous frame and current frame),
-    // and applies gamma correction (which brightens the entire image), and then displays the final accumulated rendering to the screen
-    sceneSettings.screenOutputGeometry = new THREE.PlaneGeometry(2, 2);
-
-    sceneSettings.screenOutput.uniforms = {
-        tPathTracedImageTexture: { type: "t", value: sceneSettings.pathTracing.renderTarget.texture },
-        uSampleCounter: { type: "f", value: 0.0 },
-        uOneOverSampleCounter: { type: "f", value: 0.0 },
-        uPixelEdgeSharpness: { type: "f", value: sceneSettings.pixelEdgeSharpness },
-        uEdgeSharpenSpeed: { type: "f", value: sceneSettings.edgeSharpenSpeed },
-        uFilterDecaySpeed: { type: "f", value: sceneSettings.filterDecaySpeed },
-        uSceneIsDynamic: { type: "b1", value: sceneSettings.sceneIsDynamic },
-        uUseToneMapping: { type: "b1", value: sceneSettings.useToneMapping }
-    };
-
-    sceneSettings.fileLoader.load('shaders/ScreenOutput_Fragment.glsl', function (shaderText) {
-
-        sceneSettings.screenOutput.fragmentShader = shaderText;
-
-        sceneSettings.screenOutput.material = new THREE.ShaderMaterial({
-            uniforms: sceneSettings.screenOutput.uniforms,
-            vertexShader: sceneSettings.pathTracing.vertexShader,
-            fragmentShader: sceneSettings.screenOutput.fragmentShader,
-            depthWrite: false,
-            depthTest: false
-        });
-
-        sceneSettings.screenOutput.mesh = new THREE.Mesh(sceneSettings.screenOutput.geometry, sceneSettings.screenOutput.material);
-        sceneSettings.screenOutput.scene.add(sceneSettings.screenOutput.mesh);
+    // Screen Output Shader
+    loadShaderAndCreateMesh(sceneSettings, {
+        vertexShaderPath: 'shaders/common_PathTracing_Vertex.glsl',
+        fragmentShaderPath: 'shaders/ScreenOutput_Fragment.glsl',
+        uniforms: sceneSettings.screenOutput.uniforms,
+        geometry: new THREE.PlaneGeometry(2, 2),
+        scene: sceneSettings.screenOutput.scene,
+        depthTest: false,
+        depthWrite: false
     });
+    setCameraInfoElementStyle(sceneSettings.cameraInfoElement)
 
     // this 'jumpstarts' the initial dimensions and parameters for the window and renderer
     onWindowResize();
 
     // everything is set up, now we can start animating
     animate();
-
 }
 
 
+
+function setCameraInfoElementStyle(cameraInfoElement) {
+    cameraInfoElement.style.cursor = "default";
+    cameraInfoElement.style.userSelect = "none";
+    cameraInfoElement.style.MozUserSelect = "none";
+}
+
+function handleSceneDynamism({
+    cameraIsMoving,
+    sceneIsDynamic,
+    sampleCounter,
+    frameCounter,
+    cameraRecentlyMoving,
+    pathTracingUniforms
+}) {
+    if (!cameraIsMoving) {
+        if (sceneIsDynamic)
+            sampleCounter = 1.0; // reset for continuous updating of image
+        else sampleCounter += 1.0; // for progressive refinement of image
+
+        frameCounter += 1.0;
+        cameraRecentlyMoving = false;
+    }
+
+    if (cameraIsMoving) {
+        frameCounter += 1.0;
+        if (!cameraRecentlyMoving) {
+            // record current sampleCounter before it gets set to 1.0 below
+            pathTracingUniforms.uPreviousSampleCount.value = sampleCounter;
+            frameCounter = 1.0;
+            cameraRecentlyMoving = true;
+        }
+        sampleCounter = 1.0;
+    }
+
+    return { sampleCounter, frameCounter }
+}
+
+function updateAnimatedPathtracingUniforms({ pathTracing, elapsedTime, cameraIsMoving, sampleCounter, frameCounter }) {
+    pathTracing.uniforms.uTime.value = elapsedTime;
+    pathTracing.uniforms.uCameraIsMoving.value = cameraIsMoving;
+    pathTracing.uniforms.uSampleCounter.value = sampleCounter;
+    pathTracing.uniforms.uFrameCounter.value = frameCounter;
+    pathTracing.uniforms.uRandomVec2.value.set(Math.random(), Math.random());
+
+}
+
 function animate() {
-    sceneSettings.frameTime = sceneSettings.clock.getDelta();
-
-    sceneSettings.elapsedTime = sceneSettings.clock.getElapsedTime() % 1000;
-
     // reset flags
     sceneSettings.cameraIsMoving = false;
+    // Update variables 
+    sceneSettings.frameTime = sceneSettings.clock.getDelta();
+    sceneSettings.elapsedTime = sceneSettings.clock.getElapsedTime() % 1000;
 
-    // if GUI has been used, update
+    // if GUI has been used, update window size. 
     if (sceneSettings.needChangePixelResolution) {
         onWindowResize();
     }
 
+    // Handle user input.
+    const { oldYawRotation, oldPitchRotation, cameraIsMoving } = sceneSettings.controls.detectMovement(sceneSettings)
+    sceneSettings.oldYawRotation = oldYawRotation
+    sceneSettings.oldPitchRotation = oldPitchRotation
+    sceneSettings.cameraIsMoving = cameraIsMoving
 
-    // check user controls
-    if (sceneSettings.mouseControl) {
-        // movement detected
-        if (sceneSettings.oldYawRotation != sceneSettings.cameraControls.yawObject.rotation.y ||
-            sceneSettings.oldPitchRotation != sceneSettings.cameraControls.pitchObject.rotation.x) {
-            sceneSettings.cameraIsMoving = true;
-        }
-
-        // save state for next frame
-        sceneSettings.oldYawRotation = sceneSettings.cameraControls.yawObject.rotation.y;
-        sceneSettings.oldPitchRotation = sceneSettings.cameraControls.pitchObject.rotation.x;
-
-    }
-
-    // this gives us a vector in the direction that the camera is pointing,
-    // which will be useful for moving the camera 'forward' and shooting projectiles in that direction
-    sceneSettings.controls.getDirection(sceneSettings.cameraDirectionVector);
-    sceneSettings.cameraDirectionVector.normalize();
-    sceneSettings.controls.getUpVector(sceneSettings.cameraUpVector);
-    sceneSettings.cameraUpVector.normalize();
-    sceneSettings.controls.getRightVector(sceneSettings.cameraRightVector);
-    sceneSettings.cameraRightVector.normalize();
-
-
-    sceneSettings.controls.handleInput(
-        sceneSettings
-    )
-
-
+    updateCameraVectors(sceneSettings)
+    sceneSettings.isPaused = sceneSettings.controls.handleInput(sceneSettings)
 
     // the following gives us a rotation quaternion (4D vector), which will be useful for 
     // rotating scene objects to match the camera's rotation
-    sceneSettings.worldCamera.getWorldQuaternion(sceneSettings.cameraWorldQuaternion);
+    sceneSettings.worldCamera.getWorldQuaternion(sceneSettings.camera.worldQuaternion);
 
 
-    // scene/demo-specific uniforms
-    // BOXES
+    // Update scene specific uniforms
     sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix.value.copy(sceneSettings.tallBox.mesh.matrixWorld).invert();
     sceneSettings.pathTracing.uniforms.uShortBoxInvMatrix.value.copy(sceneSettings.shortBox.mesh.matrixWorld).invert();
-    let cameraInfoElement = document.getElementById('cameraInfo');
-    cameraInfoElement.style.cursor = "default";
-    cameraInfoElement.style.userSelect = "none";
-    cameraInfoElement.style.MozUserSelect = "none";
 
     // INFO
-    cameraInfoElement.innerHTML = "FOV: " + sceneSettings.worldCamera.fov + " / Aperture: " + sceneSettings.apertureSize.toFixed(2) + " / FocusDistance: " + sceneSettings.focusDistance + "<br>" + "Samples: " + sceneSettings.sampleCounter;
+    sceneSettings.cameraInfoElement.innerHTML = "FOV: " + sceneSettings.worldCamera.fov + " / Aperture: " + sceneSettings.apertureSize.toFixed(2) + " / FocusDistance: " + sceneSettings.focusDistance + "<br>" + "Samples: " + sceneSettings.sampleCounter;
 
-    // now update uniforms that are common to all scenes
-    if (!sceneSettings.cameraIsMoving) {
-        if (sceneSettings.sceneIsDynamic)
-            sceneSettings.sampleCounter = 1.0; // reset for continuous updating of image
-        else sceneSettings.sampleCounter += 1.0; // for progressive refinement of image
+    // Decide whether or not to reset sample and frame count basaed on whether or not the scene is dynamic.
+    const { sampleCounter, frameCounter } = handleSceneDynamism(sceneSettings);
+    sceneSettings.sampleCounter = sampleCounter
+    sceneSettings.frameCounter = frameCounter
 
-        sceneSettings.frameCounter += 1.0;
-
-        sceneSettings.cameraRecentlyMoving = false;
-    }
-
-    sceneSettings.pathTracing.uniforms.uTime.value = sceneSettings.elapsedTime;
-    sceneSettings.pathTracing.uniforms.uCameraIsMoving.value = sceneSettings.cameraIsMoving;
-    sceneSettings.pathTracing.uniforms.uSampleCounter.value = sceneSettings.sampleCounter;
-    sceneSettings.pathTracing.uniforms.uFrameCounter.value = sceneSettings.frameCounter;
-    sceneSettings.pathTracing.uniforms.uRandomVec2.value.set(Math.random(), Math.random());
+    // Update pathtracing uniforms that must change on every frame. 
+    updateAnimatedPathtracingUniforms(sceneSettings);
 
     if (sceneSettings.windowIsBeingResized) {
         sceneSettings.cameraIsMoving = true;
         sceneSettings.windowIsBeingResized = false;
     }
 
-    if (sceneSettings.cameraIsMoving) {
-        sceneSettings.frameCounter += 1.0;
-
-        if (!sceneSettings.cameraRecentlyMoving) {
-            // record current sampleCounter before it gets set to 1.0 below
-            sceneSettings.pathTracing.uniforms.uPreviousSampleCount.value = sceneSettings.sampleCounter;
-            sceneSettings.frameCounter = 1.0;
-            sceneSettings.cameraRecentlyMoving = true;
-        }
-        sceneSettings.sampleCounter = 1.0;
-    }
 
     // CAMERA
     sceneSettings.cameraControls.object.updateMatrixWorld(true);
@@ -360,7 +369,7 @@ function animate() {
     // PROGRESSIVE SAMPLE WEIGHT (reduces intensity of each successive animation frame's image)
     sceneSettings.screenOutput.uniforms.uOneOverSampleCounter.value = 1.0 / sceneSettings.sampleCounter;
 
-    // // RENDERING in 3 steps
+    // RENDERING in 3 steps
 
     // STEP 1
     // Perform PathTracing and Render(save) into pathTracingRenderTarget, a full-screen texture.
@@ -381,10 +390,8 @@ function animate() {
     sceneSettings.renderer.render(sceneSettings.screenOutput.scene, sceneSettings.quadCamera);
 
     sceneSettings.stats.update();
-
     requestAnimationFrame(animate);
 }
-
 
 function startApp() {
 

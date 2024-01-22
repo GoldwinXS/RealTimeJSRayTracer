@@ -53,11 +53,12 @@ export const sceneSettings = {
     oldYawRotation: null,
     oldPitchRotation: null,
     isPaused: true,
+    cameraInfoElement: document.getElementById('cameraInfo'),
     blueNoiseTexture: null,
     container: null,
     stats: new window.Stats(),
     quadCamera: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1),
-    sceneIsDynamic: false,
+    sceneIsDynamic: true,
     apertureSize: 0.0,
     focusDistance: 132.0,
     fileLoader: new THREE.FileLoader(),
@@ -77,6 +78,12 @@ export const sceneSettings = {
         yawObject: null,
         pitchObject: null
     },
+    camera: {
+        directionVector: new THREE.Vector3(),
+        rightVector: new THREE.Vector3(),
+        upVector: new THREE.Vector3(),
+        worldQuaternion: new THREE.Quaternion(),
+    },
     textureLoader: new THREE.TextureLoader(),
     pixelEdgeSharpness: 1.0,
     edgeSharpenSpeed: 0.05,
@@ -87,10 +94,7 @@ export const sceneSettings = {
     elapsedTime: null,
     needChangePixelResolution: false,
     windowIsBeingResized: false,
-    cameraDirectionVector: new THREE.Vector3(),
-    cameraRightVector: new THREE.Vector3(),
-    cameraUpVector: new THREE.Vector3(),
-    cameraWorldQuaternion: new THREE.Quaternion(),
+
     sampleCounter: 0.0,
     frameCounter: 1.0,
 
@@ -104,6 +108,15 @@ export const sceneSettings = {
     clock: new THREE.Clock()
 
 };
+
+// Give names to things for easier identification
+sceneSettings.screenCopy.scene.name = "screenCopy.scene"
+sceneSettings.screenOutput.scene.name = "screenOutput.scene"
+sceneSettings.pathTracing.scene.name = "pathTracing.scene"
+
+sceneSettings.screenCopy.geometry.name = "screenCopy.geometry"
+sceneSettings.screenOutput.geometry.name = "screenOutput.geometry"
+sceneSettings.pathTracing.geometry.name = "pathTracing.geometry"
 
 
 export default sceneSettings 

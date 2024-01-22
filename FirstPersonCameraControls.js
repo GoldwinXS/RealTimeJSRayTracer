@@ -119,42 +119,52 @@ export var FirstPersonCameraControls = function (camera) {
         KeyboardState[event.code] = false;
     }
 
-    this.handleInput = function (sceneSettings) {
+    this.handleInput = function ({ cameraControls, camera, cameraIsMoving, cameraFlightSpeed, frameTime }) {
         if (this.isPaused) {
             return false
         }
-        let cameraControlsObject = sceneSettings.cameraControls.object
-        let cameraDirectionVector = sceneSettings.cameraDirectionVector
-        let cameraFlightSpeed = sceneSettings.cameraFlightSpeed
-        let cameraIsMoving = sceneSettings.cameraIsMoving
-        let frameTime = sceneSettings.frameTime
-        let cameraRightVector = sceneSettings.cameraRightVector
-        let cameraUpVector = sceneSettings.cameraUpVector
+        let cameraControlsObject = cameraControls.object
         if ((keyPressed('KeyW'))) {
-            cameraControlsObject.position.add(cameraDirectionVector.multiplyScalar(cameraFlightSpeed * frameTime));
+            cameraControlsObject.position.add(camera.directionVector.multiplyScalar(cameraFlightSpeed * frameTime));
             cameraIsMoving = true;
         }
         if ((keyPressed('KeyS')) && !(keyPressed('KeyW'))) {
-            cameraControlsObject.position.sub(cameraDirectionVector.multiplyScalar(cameraFlightSpeed * frameTime));
+            cameraControlsObject.position.sub(camera.directionVector.multiplyScalar(cameraFlightSpeed * frameTime));
             cameraIsMoving = true;
         }
         if ((keyPressed('KeyA')) && !(keyPressed('KeyD'))) {
-            cameraControlsObject.position.sub(cameraRightVector.multiplyScalar(cameraFlightSpeed * frameTime));
+            cameraControlsObject.position.sub(camera.rightVector.multiplyScalar(cameraFlightSpeed * frameTime));
             cameraIsMoving = true;
         }
         if ((keyPressed('KeyD')) && !(keyPressed('KeyA'))) {
-            cameraControlsObject.position.add(cameraRightVector.multiplyScalar(cameraFlightSpeed * frameTime));
+            cameraControlsObject.position.add(camera.rightVector.multiplyScalar(cameraFlightSpeed * frameTime));
             cameraIsMoving = true;
         }
         if (keyPressed('KeyQ') && !keyPressed('KeyZ')) {
-            cameraControlsObject.position.add(cameraUpVector.multiplyScalar(cameraFlightSpeed * frameTime));
+            cameraControlsObject.position.add(camera.upVector.multiplyScalar(cameraFlightSpeed * frameTime));
             cameraIsMoving = true;
         }
         if (keyPressed('KeyZ') && !keyPressed('KeyQ')) {
-            cameraControlsObject.position.sub(cameraUpVector.multiplyScalar(cameraFlightSpeed * frameTime));
+            cameraControlsObject.position.sub(camera.upVector.multiplyScalar(cameraFlightSpeed * frameTime));
             cameraIsMoving = true;
         }
-        sceneSettings.cameraIsMoving = cameraIsMoving
+        return cameraIsMoving
+    }
+
+    this.detectMovement = function ({ mouseControl, cameraControls, oldYawRotation, oldPitchRotation, cameraIsMoving }) {
+        // check user controls
+        if (mouseControl) {
+            // movement detected
+            if (oldYawRotation != cameraControls.yawObject.rotation.y ||
+                oldPitchRotation != cameraControls.pitchObject.rotation.x) {
+                cameraIsMoving = true;
+            }
+
+            // save state for next frame
+            oldYawRotation = cameraControls.yawObject.rotation.y;
+            oldPitchRotation = cameraControls.pitchObject.rotation.x;
+        }
+        return { oldYawRotation, oldPitchRotation, cameraIsMoving }
     }
 
 
