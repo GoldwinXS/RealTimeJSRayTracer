@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import LoadVoxels from './js/LoadVoxels';
-import { onWindowResize } from './WindowEvents';
+import { onWindowResize } from './js/WindowEvents';
 import { sceneSettings } from './settings';
 import { FirstPersonCameraControls } from './js/FirstPersonCameraControls';
 

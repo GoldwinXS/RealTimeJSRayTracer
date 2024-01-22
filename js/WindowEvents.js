@@ -1,4 +1,4 @@
-import sceneSettings from "./settings";
+import sceneSettings from "../settings";
 
 // eslint-disable-next-line no-unused-vars
 export function onWindowResize(event) {
