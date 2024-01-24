@@ -183,30 +183,6 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 	return cellIndex;
 }
 
-// void MarchVoxelSpace(Box voxelBox, vec3 rObjOrigin, vec3 rObjDirection, out vec3 normal, out bool isRayExiting, out float t, out float d, out int objectCount) { 
-// 	// If we have a hit with the volume, then translate the ray so that it is touching the box 
-// 	rObjOrigin += d * rObjDirection * 1.00001;
-// 	// Get the position the voxel was hit at between 0 and voxelGridZise, as well as the ray's position 
-// 	ivec3 voxelCoords = getVoxelPosition(rObjDirection, rObjOrigin);
-// 	// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
-// 	if(voxelCoords != ivec3(-1)) {
-// 		// Back off the ray origin so that we don't mistakenly put it inside a voxel 
-// 		rObjOrigin -= rObjDirection;
-// 		// Scale voxel coordinate space to voxel model space 
-// 		vec3 voxelPosition = vec3(voxelCoords) * ((voxelBox.maxCorner - voxelBox.minCorner)) / uVoxelGridSize;
-// 		// Transform the voxel position by min corner, that is the voxel's min corner
-// 		vec3 voxelMinCorner = voxelPosition + voxelBox.minCorner;
-// 		vec3 voxelMaxCorner = voxelMinCorner + voxelSize;
-// 		d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOrigin - rayDirection * 0.0001, rObjDirection, normal, isRayExiting);
-// 		t = d;
-// 		hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
-// 		hitEmission = vec3(0.0);
-// 		hitColor = texture(voxelTexture, vec3(voxelCoords) / uVoxelGridSize).rgb;
-// 		hitType = voxelBox.type;
-// 		hitObjectID = float(objectCount);
-// 	}
-// }
-
 //--------------------------------------------------------------------------------------------------------
 float SceneIntersect(int checkWater)
 //--------------------------------------------------------------------------------------------------------
@@ -293,6 +269,7 @@ float SceneIntersect(int checkWater)
 	Box voxelBox = boxes[3];
 	rObjOrigin = vec3(uVoxelMeshInvMatrix * vec4(rayOrigin, 1.0));
 	rObjDirection = vec3(uVoxelMeshInvMatrix * vec4(rayDirection, 0.0));
+	vec3 rObjOriginOriginal = rObjOrigin;
 	// Check if the ray will intersect with the voxel volume at all
 	d = BoxIntersect(voxelBox.minCorner, voxelBox.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
 	if(d < t) {
@@ -311,28 +288,17 @@ float SceneIntersect(int checkWater)
 			// Transform the voxel position by min corner, that is the voxel's min corner
 			vec3 voxelMinCorner = voxelPosition + voxelBox.minCorner;
 			vec3 voxelMaxCorner = voxelMinCorner + voxelSize;
-			d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOrigin - rayDirection * 0.0001, rObjDirection, normal, isRayExiting);
+			d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOriginOriginal, rObjDirection, normal, isRayExiting);
 			t = d;
 			hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
 			hitEmission = vec3(0.0);
 			hitColor = texture(voxelTexture, vec3(voxelCoords) / uVoxelGridSize).rgb;
 			hitType = voxelBox.type;
 			hitObjectID = float(objectCount);
+			objectCount++;
 		}
 	}
 	objectCount++;
-
-	// for debugging 
-	// d = BoxIntersect(boxes[3].maxCorner, boxes[3].minCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
-	// if(d < t) {
-	// 	t = d;
-	// 	hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
-	// 	hitEmission = vec3(0.0);
-	// 	hitColor = vec3(0.63, 0.77, 0.72);
-	// 	hitType = boxes[3].type;
-	// 	hitObjectID = float(objectCount);
-	// }
-	// objectCount++;
 
 	// color surfaces beneath the water
 	vec3 underwaterHitPos = rayOrigin + rayDirection * t;
