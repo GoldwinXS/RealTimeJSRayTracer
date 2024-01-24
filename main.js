@@ -59,7 +59,7 @@ function initSceneData(sceneSettings) {
     }, {
         visible: false,
         rotation: [0, Math.PI * 0.1, 0],
-        position: [180, 170, -350],
+        position: [385, 170, -800],
         updateMatrixWorld: true
     });
 
@@ -79,7 +79,7 @@ function initSceneData(sceneSettings) {
     const radians = degree * (Math.PI / 180); // Convert degrees to radians
 
     sceneSettings.voxels.mesh.rotation.x = radians;
-    sceneSettings.voxels.mesh.position.set(200, 120, -200);
+    sceneSettings.voxels.mesh.position.set(631, 310, -250);
     sceneSettings.voxels.mesh.updateMatrixWorld(true); // 'true' forces immediate matrix update
 
     // Add meshes.
@@ -201,12 +201,14 @@ function animate() {
     sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix.value.copy(sceneSettings.tallBox.mesh.matrixWorld).invert();
     sceneSettings.pathTracing.uniforms.uShortBoxInvMatrix.value.copy(sceneSettings.shortBox.mesh.matrixWorld).invert();
     sceneSettings.voxels.mesh.rotation.y = sceneSettings.voxels.mesh.rotation.y + 0.001
-    sceneSettings.voxels.mesh.rotation.z = sceneSettings.voxels.mesh.rotation.z + 0.001
+    // sceneSettings.voxels.mesh.rotation.z = sceneSettings.voxels.mesh.rotation.z + 0.001
     sceneSettings.pathTracing.uniforms.uVoxelMeshInvMatrix.value.copy(sceneSettings.voxels.mesh.matrixWorld).invert();
 
 
     // INFO
-    sceneSettings.cameraInfoElement.innerHTML = "FOV: " + sceneSettings.worldCamera.fov + " / Aperture: " + sceneSettings.apertureSize.toFixed(2) + " / FocusDistance: " + sceneSettings.focusDistance + "<br>" + "Samples: " + sceneSettings.sampleCounter;
+    const camPosition = sceneSettings.cameraControls.object.position
+    const numberOfRays = Math.round(sceneSettings.context.drawingBufferHeight * sceneSettings.context.drawingBufferWidth * sceneSettings.pixelRatio)
+    sceneSettings.cameraInfoElement.innerHTML = "FOV: " + sceneSettings.worldCamera.fov + " / Aperture: " + sceneSettings.apertureSize.toFixed(2) + " / FocusDistance: " + sceneSettings.focusDistance + "<br>" + "Samples: " + sceneSettings.sampleCounter + "<br>" + "Camera Position: " + `x:${Math.round(camPosition.x)}, y:${Math.round(camPosition.y)}, z:${Math.round(camPosition.z)} ` + "<br>" + `Approx. Number of Rays: ${numberOfRays}`;
 
     // Decide whether or not to reset sample and frame count basaed on whether or not the scene is dynamic.
     const { sampleCounter, frameCounter } = handleSceneDynamism(sceneSettings);
@@ -282,9 +284,9 @@ function startApp() {
 async function loadFilesAndStart(sceneSettings) {
     // Handle loading of any files ayncronously. 
     try {
-        const { voxData, size } = await loadVoxFile('./models/castle.vox');
+        const { voxData, size } = await loadVoxFile('./models/MicroRecon.vox');
         const voxelData = processVoxData(voxData)
-        // const voxelData = createTestVoxelData(size)
+        // const voxelData = createTestVoxelData({ x: 10, y: 10, z: 10 })
         const { voxelMesh, voxelTexture, voxelMaterial } = createVoxelTextureAndMesh(voxelData, size);
         sceneSettings.voxels.size = size
         sceneSettings.voxels.mesh = voxelMesh

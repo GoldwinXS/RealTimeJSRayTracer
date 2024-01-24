@@ -51,7 +51,6 @@ export function setupUniforms({
 
 }
 
-
 export function setupRenderTargets(context) {
     // setup render targets...
     let renderTarget = new THREE.WebGLRenderTarget(context.drawingBufferWidth, context.drawingBufferHeight, {
