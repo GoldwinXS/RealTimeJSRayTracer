@@ -10,12 +10,12 @@ uniform sampler3D voxelTexture;
 uniform vec3 uVoxelGridSize;
 
 #include <pathtracing_uniforms_and_defines>
+const float epsilon = 0.0001;
 
 #define N_QUADS 1
 #define N_BOXES 4
 
-const float voxelGridSize = 21.0;
-const float voxelSize = 5.0;
+const float voxelSize = 20.0;
 
 //-----------------------------------------------------------------------
 
@@ -77,27 +77,49 @@ float getWaterWaveHeight(vec3 pos) {
 	return STILL_WATER_LEVEL + (waveOffset * WATER_WAVE_AMP);
 }
 
-void getTandDeltaT(inout float t, inout float deltaT, float rayDirection, float gridDimension, float rayOrigGrid, float cellDimension) {
+void getTandDeltaT(inout float t, inout float deltaT, float rayDirection, float rayOrigGrid, float cellDimension, int cellIndex) {
 	// Only scalar values in this function, since the same logic applies to all axies but we need to repeat it for all 
+	deltaT = cellDimension / abs(rayDirection);
 
-	// if the ray direction in this axis is negative...
-	if(rayDirection <= 0.0) {
-		// We need to flip the sign by adding a (-) 
-		deltaT = -gridDimension / rayDirection;
-		// floor(rayOrigGrid / cellDimension) normalizes the ray's origin to cell number
-		// for example, if the ray is at 3.1 and our cells have a dimension of 3 then we know that we are in cell floor(3.1/3) -> 1
-		t = (floor(rayOrigGrid / cellDimension) * cellDimension - rayOrigGrid) / rayDirection;
+	if(rayDirection < 0.0) {
+		t = (float(cellIndex) * cellDimension - rayOrigGrid) / rayDirection;
 	} else {
-		// If the ray direction is positive, then we do not need to flip the sign to get a positive deltaT
-		deltaT = gridDimension / rayDirection;
-		// Since the ray direction is positive, we need to account for this by increasing our starting position 
-		// If the ray has a start at 3.1, and is going in a positive direction, then floor(3.1/3) -> 1
-		t = ((floor(rayOrigGrid / cellDimension) + 1.0) * cellDimension - rayOrigGrid) / rayDirection;
+		t = ((float(cellIndex) + 1.0) * cellDimension - rayOrigGrid) / rayDirection;
 	}
 }
 
-ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
+struct VoxelHitInfo {
+	ivec3 voxelCoords;
+	vec3 rayPosition;
+};
+
+bool rayInbounds(vec3 rayPosition, vec3 boxMin, vec3 boxMax) {
+	if(rayPosition.x < boxMin.x || rayPosition.x >= boxMax.x ||
+		rayPosition.y < boxMin.y || rayPosition.y >= boxMax.y ||
+		rayPosition.z < boxMin.z || rayPosition.z >= boxMax.z) {
+		return false;
+	}
+	return true;
+}
+
+bool voxelInbounds(ivec3 cellIndex, ivec3 gridResolution) {
+	if(cellIndex.x < 0 || cellIndex.x >= gridResolution.x ||
+		cellIndex.y < 0 || cellIndex.y >= gridResolution.y ||
+		cellIndex.z < 0 || cellIndex.z >= gridResolution.z) {
+		return false;
+	}
+	return true;
+}
+
+bool voxelIsSolid(ivec3 cellIndex) {
+	return texture(voxelTexture, vec3(cellIndex) / uVoxelGridSize).a > 0.0;
+}
+
+VoxelHitInfo getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
+	// Make sure we're normalized 
 	localRayDir = normalize(localRayDir);
+	vec3 rayPosition = localRayOrigin;
+
 	// gridResolution is number of cells in each dimension and should be integer values (0, 1, 2, ...)
 	ivec3 gridResolution = ivec3(uVoxelGridSize.x, uVoxelGridSize.y, uVoxelGridSize.z);
 	// Convert worldspace coords which can be -ve coords to all +ve coords by subtracting min corner
@@ -117,52 +139,118 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 	// Initialize our delta T and next crossing 
 	vec3 t;
 	vec3 deltaT;
-	vec3 nextCrossingT;
 
-	// Determine t and detla t values for the DDA algorithm for all axies 
-	getTandDeltaT(t.x, deltaT.x, localRayDir.x, gridDimension.x, rayOrigGrid.x, cellDimension.x);
-	getTandDeltaT(t.y, deltaT.y, localRayDir.y, gridDimension.y, rayOrigGrid.y, cellDimension.y);
-	getTandDeltaT(t.z, deltaT.z, localRayDir.z, gridDimension.z, rayOrigGrid.z, cellDimension.z);
-
-	float stepSize = 0.0;
 	ivec3 cellIndex = ivec3(floor(rayOrigGrid / cellDimension));
 
-	int MAX_CHECKS = 1000;
+	// Determine t and detla t values for the DDA algorithm for all axies 
+	getTandDeltaT(t.x, deltaT.x, localRayDir.x, rayOrigGrid.x, cellDimension.x, cellIndex.x);
+	getTandDeltaT(t.y, deltaT.y, localRayDir.y, rayOrigGrid.y, cellDimension.y, cellIndex.y);
+	getTandDeltaT(t.z, deltaT.z, localRayDir.z, rayOrigGrid.z, cellDimension.z, cellIndex.z);
+
+	int MAX_CHECKS = 1024;
+	float stepSize = 0.0;
 
 	for(int check = 0; check < MAX_CHECKS; check++) {
 
-		// Check if the ray has left the grid
-		if(cellIndex.x < 0 || cellIndex.x >= gridResolution.x ||
-			cellIndex.y < 0 || cellIndex.y >= gridResolution.y ||
-			cellIndex.z < 0 || cellIndex.z >= gridResolution.z) {
-			return ivec3(-1);
+		if(voxelIsSolid(cellIndex)) {
+			break;
 		}
-		// Check if we have hit a voxel
-		float alphaValue = texture(voxelTexture, vec3(cellIndex) / uVoxelGridSize).a;
-		if(alphaValue > 0.0) {
-			return cellIndex;
+		if(!voxelInbounds(cellIndex, gridResolution)) {
+			return VoxelHitInfo(ivec3(-1), rayPosition);
+		}
+
+		if(t.x < t.y) {
+			if(t.x < t.z) {
+				cellIndex.x += (localRayDir.x < 0.0) ? -1 : 1;
+				t.x += deltaT.x;
+				if(!voxelInbounds(cellIndex, gridResolution)) {
+					break;
+				}
+			} else {
+				cellIndex.z += (localRayDir.z < 0.0) ? -1 : 1;
+				t.z += deltaT.z;
+				if(!voxelInbounds(cellIndex, gridResolution)) {
+					break;
+				}
+			}
+		} else {
+			if(t.y < t.z) {
+				cellIndex.y += (localRayDir.y < 0.0) ? -1 : 1;
+				t.y += deltaT.y;
+				if(!voxelInbounds(cellIndex, gridResolution)) {
+					break;
+				}
+			} else {
+				cellIndex.z += (localRayDir.z < 0.0) ? -1 : 1;
+				t.z += deltaT.z;
+				if(!voxelInbounds(cellIndex, gridResolution)) {
+					break;
+				}
+			}
 		}
 
 		// If we have not hit anything then continue to march
-		if(t.x < t.y && t.x < t.z) {
-        // Ray will hit a cell boundary in the x direction next
-			stepSize = t.x;
-			t.x += deltaT.x;
-			cellIndex.x += (localRayDir.x < 0.0) ? -1 : 1;
-		} else if(t.y < t.z) {
-        // Ray will hit a cell boundary in the y direction next
-			stepSize = t.y;
-			t.y += deltaT.y;
-			cellIndex.y += (localRayDir.y < 0.0) ? -1 : 1;
-		} else {
-        // Ray will hit a cell boundary in the z direction next
-			stepSize = t.z;
-			t.z += deltaT.z;
-			cellIndex.z += (localRayDir.z < 0.0) ? -1 : 1;
-		}
+		// if(t.x < t.y && t.x < t.z) {
+        // // Ray will hit a cell boundary in the x direction next
+		// 	t.x += deltaT.x;
+		// 	cellIndex.x += (localRayDir.x < 0.0) ? -1 : 1;
+		// } else if(t.y < t.z) {
+        // // Ray will hit a cell boundary in the y direction next
+		// 	t.y += deltaT.y;
+		// 	cellIndex.y += (localRayDir.y < 0.0) ? -1 : 1;
+		// } else {
+        // // Ray will hit a cell boundary in the z direction next
+		// 	t.z += deltaT.z;
+		// 	cellIndex.z += (localRayDir.z < 0.0) ? -1 : 1;
+		// }
 
 	}
-	return cellIndex;
+	return VoxelHitInfo(cellIndex, rayPosition);
+}
+
+vec3 calculateNormalForRayAABBIntersection(vec3 intersectionPoint, vec3 voxelCenter) {
+	vec3 difference = intersectionPoint - (voxelCenter + 0.5);
+	vec3 absoluteDifference = abs(difference);
+	if(absoluteDifference.x > absoluteDifference.y) {
+		if(absoluteDifference.x > absoluteDifference.z) {
+			return vec3(sign(difference.x), 0.0, 0.0);
+		} else {
+			return vec3(0, 0, sign(difference.z));
+		}
+	} else {
+		if(absoluteDifference.y > absoluteDifference.z) {
+			return vec3(0.0, sign(difference.y), 0.0);
+		} else {
+			return vec3(0.0, 0.0, sign(difference.z));
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------------------------------------------------------
+float BoxIntersectNoSideEffects(vec3 minCorner, vec3 maxCorner, vec3 rayOrigin, vec3 rayDirection)
+//-----------------------------------------------------------------------------------------------------------------------------
+{
+	vec3 invDir = 1.0 / rayDirection;
+	vec3 near = (minCorner - rayOrigin) * invDir;
+	vec3 far = (maxCorner - rayOrigin) * invDir;
+
+	vec3 tmin = min(near, far);
+	vec3 tmax = max(near, far);
+
+	float t0 = max(max(tmin.x, tmin.y), tmin.z);
+	float t1 = min(min(tmax.x, tmax.y), tmax.z);
+
+	if(t0 > t1)
+		return INFINITY;
+	if(t0 > 0.0) // if we are outside the box
+	{
+		return t0;
+	}
+	if(t1 > 0.0) // if we are inside the box
+	{
+		return t1;
+	}
+	return INFINITY;
 }
 
 //--------------------------------------------------------------------------------------------------------
@@ -250,36 +338,51 @@ float SceneIntersect(int checkWater)
 	// Transform the ray into the coordinate space of the box containing the voxels 
 	rObjOrigin = vec3(uVoxelMeshInvMatrix * vec4(rayOrigin, 1.0));
 	rObjDirection = vec3(uVoxelMeshInvMatrix * vec4(rayDirection, 0.0));
-
+	d = BoxIntersectNoSideEffects(boxes[3].minCorner, boxes[3].maxCorner, rObjOrigin, rObjDirection);
 	// Check if the ray will intersect with the voxel volume at all
-	d = BoxIntersect(boxes[3].maxCorner, boxes[3].minCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
+	// d = BoxIntersect(boxes[3].maxCorner, boxes[3].minCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
 	if(d < t) {
-		hitColor = vec3(0.86, 0.25, 0.25);
+		// hitColor = vec3(0.86, 0.25, 0.25);
 		// If we have a hit with the volume, then translate the ray so that it is touching the box 
-		rObjOrigin += d * rObjDirection * 1.0001;
-		// Get the position the voxel was hit at between 0 and voxelGridZise
-		ivec3 voxelCoords = getVoxelPosition(rObjDirection, rObjOrigin);
+		rObjOrigin += d * rObjDirection * 1.00001;
+		// Get the position the voxel was hit at between 0 and voxelGridZise, as well as the ray's position 
+		VoxelHitInfo hitInfo = getVoxelPosition(rObjDirection, rObjOrigin);
 		// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
-		if(voxelCoords != ivec3(-1)) {
-			t = d;
+		if(hitInfo.voxelCoords == ivec3(-1)) {
+			hitColor = vec3(1.0, 0.27, 0.27);
+		} 
 
+		// else if(hitInfo.voxelCoords == ivec3(-2)) {
+		// 	hitColor = vec3(0.1, 0.3, 0.91);
+		// } else {
+		// 	hitColor = vec3(0.35, 1.0, 0.27);
+		// }
+// hitInfo.voxelCoords != ivec3(-1)
+		if(hitInfo.voxelCoords != ivec3(-1)) {
+			// t = d;
+			// Back off the ray origin so that we don't mistakenly put it inside a voxel 
+			rObjOrigin -= rObjDirection;
 			// Scale voxel coordinate space to voxel model space 
-			vec3 voxelPosition = vec3(voxelCoords) * ((boxes[3].maxCorner - boxes[3].minCorner)) / uVoxelGridSize;
+			vec3 voxelPosition = vec3(hitInfo.voxelCoords) * ((boxes[3].maxCorner - boxes[3].minCorner)) / uVoxelGridSize;
 			// Transform the voxel position by min corner, that is the voxel's min corner
 			vec3 voxelMinCorner = voxelPosition + boxes[3].minCorner;
 			vec3 voxelMaxCorner = voxelMinCorner + voxelSize;
-
-			d = BoxIntersect(voxelMaxCorner, voxelMinCorner, rObjOrigin - rayDirection, rObjDirection, normal, isRayExiting);
-
+			vec3 voxelCenter = voxelMinCorner + voxelMaxCorner;
+			if(texture(voxelTexture, vec3(hitInfo.voxelCoords) / uVoxelGridSize).a > 0.0) {
+				d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOrigin - rayDirection * 0.0001, rObjDirection, normal, isRayExiting);
+			}
+			// d = BoxIntersectNoSideEffects(voxelMaxCorner, voxelMinCorner, rObjOrigin, rObjDirection);
+			// normal = calculateNormalForRayAABBIntersection(voxelCenter, hitInfo.rayPosition + boxes[3].minCorner);
 			// Advance the ray to this new location (normal is accounted for in the function above)
 			t = d;
 			hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
 			hitEmission = vec3(0.0);
-			hitColor = texture(voxelTexture, vec3(voxelCoords) / uVoxelGridSize).rbg;
+
+			hitColor = texture(voxelTexture, vec3(hitInfo.voxelCoords) / uVoxelGridSize).rbg;
+
+			// hitColor = vec3(0.4, 0.94, 0.29);
 			hitType = boxes[3].type;
 			hitObjectID = float(objectCount);
-			vec3 voxelCoordsObj = vec3(voxelCoords) + boxes[3].minCorner;
-
 		}
 	}
 
@@ -572,8 +675,8 @@ void SetupScene(void)
 	boxes[0] = Box(vec3(-82.0, -170.0, -80.0), vec3(82.0, 170.0, 80.0), z, vec3(1), SPEC);// Tall Mirror Box Left
 	boxes[1] = Box(vec3(-86.0, -85.0, -80.0), vec3(86.0, 85.0, 80.0), z, vec3(0.2, 0.8, 0.2), DIFF);// Short Diffuse Box Right
 	boxes[2] = Box(vec3(0, 0, -1000), vec3(2000, 1000, 0), z, vec3(1), DIFF);// the Cornell Box interior 
-	// uVoxelGridSize.x is WRONG
-	boxes[3] = Box(vec3(-uVoxelGridSize.x * voxelSize * 0.5), vec3(uVoxelGridSize.x * voxelSize * 0.5), z, vec3(1), DIFF);// Voxels
+
+	boxes[3] = Box(vec3(-uVoxelGridSize * voxelSize * 0.5), vec3(uVoxelGridSize * voxelSize * 0.5), z, vec3(1), DIFF);// Voxels
 
 	quads[0] = Quad(vec3(0.0, -1.0, 0.0), vec3(213.0, 548.0, -332.0), vec3(843.0, 548.0, -332.0), vec3(343.0, 548.0, -227.0), vec3(213.0, 548.0, -227.0), L1, z, LIGHT);// Area Light Rectangle in ceiling
 }	
