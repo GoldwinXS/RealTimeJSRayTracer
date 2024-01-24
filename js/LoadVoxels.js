@@ -2,8 +2,8 @@ import * as THREE from "three";
 import readVox from 'vox-reader';
 
 // Function to calculate linear index from 3D coordinates
-function calculateIndex(x, y, z, size) {
-    return 4 * (z * size * size + y * size + x); // 4 for RGBA
+function calculateIndex(x, y, z, width, height) {
+    return 4 * (z * width * height + y * width + x); // 4 for RGBA
 }
 
 export function processVoxData(voxData) {
@@ -21,7 +21,7 @@ export function processVoxData(voxData) {
         // Adjust color index (i) as VOX color palette starts from index 1
         const colorIndex = i - 1;
         const { r, g, b, a } = voxData.rgba.values[colorIndex];
-        const index = calculateIndex(x, y, z, size.x);
+        const index = calculateIndex(x, y, z, size.x, size.y);
         voxelData[index + 0] = r; // Red
         voxelData[index + 1] = g; // Green
         voxelData[index + 2] = b; // Blue
@@ -39,7 +39,7 @@ export function createTestVoxelData(size) {
     for (let z = 0; z < size.z; z++) {
         for (let y = 0; y < size.y; y++) {
             for (let x = 0; x < size.x; x++) {
-                const index = calculateIndex(x, y, z, size.x);
+                const index = calculateIndex(x, y, z, size.x, size.y);
                 voxelData[index + 0] = x * 85;  // Red (gradually increasing)
                 voxelData[index + 1] = y * 85;  // Green (gradually increasing)
                 voxelData[index + 2] = z * 85;  // Blue (gradually increasing)

@@ -15,7 +15,7 @@ const float epsilon = 0.0001;
 #define N_QUADS 1
 #define N_BOXES 4
 
-const float voxelSize = 20.0;
+const float voxelSize = 10.0;
 
 //-----------------------------------------------------------------------
 
@@ -161,48 +161,37 @@ VoxelHitInfo getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 
 		if(t.x < t.y) {
 			if(t.x < t.z) {
+				if(!voxelInbounds(cellIndex, gridResolution)) {
+					break;
+				}
 				cellIndex.x += (localRayDir.x < 0.0) ? -1 : 1;
 				t.x += deltaT.x;
+
+			} else {
 				if(!voxelInbounds(cellIndex, gridResolution)) {
 					break;
 				}
-			} else {
 				cellIndex.z += (localRayDir.z < 0.0) ? -1 : 1;
 				t.z += deltaT.z;
-				if(!voxelInbounds(cellIndex, gridResolution)) {
-					break;
-				}
+
 			}
 		} else {
 			if(t.y < t.z) {
+				if(!voxelInbounds(cellIndex, gridResolution)) {
+					break;
+				}
 				cellIndex.y += (localRayDir.y < 0.0) ? -1 : 1;
 				t.y += deltaT.y;
-				if(!voxelInbounds(cellIndex, gridResolution)) {
+
+			} else {
+				if(!voxelInbounds((cellIndex), gridResolution)) {
 					break;
 				}
-			} else {
 				cellIndex.z += (localRayDir.z < 0.0) ? -1 : 1;
 				t.z += deltaT.z;
-				if(!voxelInbounds(cellIndex, gridResolution)) {
-					break;
-				}
+
 			}
 		}
-
-		// If we have not hit anything then continue to march
-		// if(t.x < t.y && t.x < t.z) {
-        // // Ray will hit a cell boundary in the x direction next
-		// 	t.x += deltaT.x;
-		// 	cellIndex.x += (localRayDir.x < 0.0) ? -1 : 1;
-		// } else if(t.y < t.z) {
-        // // Ray will hit a cell boundary in the y direction next
-		// 	t.y += deltaT.y;
-		// 	cellIndex.y += (localRayDir.y < 0.0) ? -1 : 1;
-		// } else {
-        // // Ray will hit a cell boundary in the z direction next
-		// 	t.z += deltaT.z;
-		// 	cellIndex.z += (localRayDir.z < 0.0) ? -1 : 1;
-		// }
 
 	}
 	return VoxelHitInfo(cellIndex, rayPosition);
@@ -342,16 +331,13 @@ float SceneIntersect(int checkWater)
 	// Check if the ray will intersect with the voxel volume at all
 	// d = BoxIntersect(boxes[3].maxCorner, boxes[3].minCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
 	if(d < t) {
+		// t = d;
 		// hitColor = vec3(0.86, 0.25, 0.25);
 		// If we have a hit with the volume, then translate the ray so that it is touching the box 
 		rObjOrigin += d * rObjDirection * 1.00001;
 		// Get the position the voxel was hit at between 0 and voxelGridZise, as well as the ray's position 
 		VoxelHitInfo hitInfo = getVoxelPosition(rObjDirection, rObjOrigin);
 		// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
-		if(hitInfo.voxelCoords == ivec3(-1)) {
-			hitColor = vec3(1.0, 0.27, 0.27);
-		} 
-
 		// else if(hitInfo.voxelCoords == ivec3(-2)) {
 		// 	hitColor = vec3(0.1, 0.3, 0.91);
 		// } else {
@@ -359,18 +345,18 @@ float SceneIntersect(int checkWater)
 		// }
 // hitInfo.voxelCoords != ivec3(-1)
 		if(hitInfo.voxelCoords != ivec3(-1)) {
-			// t = d;
+			t = d;
 			// Back off the ray origin so that we don't mistakenly put it inside a voxel 
-			rObjOrigin -= rObjDirection;
+			rObjOrigin -= rObjDirection * 1.00001;
 			// Scale voxel coordinate space to voxel model space 
 			vec3 voxelPosition = vec3(hitInfo.voxelCoords) * ((boxes[3].maxCorner - boxes[3].minCorner)) / uVoxelGridSize;
 			// Transform the voxel position by min corner, that is the voxel's min corner
 			vec3 voxelMinCorner = voxelPosition + boxes[3].minCorner;
 			vec3 voxelMaxCorner = voxelMinCorner + voxelSize;
 			vec3 voxelCenter = voxelMinCorner + voxelMaxCorner;
-			if(texture(voxelTexture, vec3(hitInfo.voxelCoords) / uVoxelGridSize).a > 0.0) {
-				d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOrigin - rayDirection * 0.0001, rObjDirection, normal, isRayExiting);
-			}
+
+			d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOrigin - rayDirection * 0.0001, rObjDirection, normal, isRayExiting);
+
 			// d = BoxIntersectNoSideEffects(voxelMaxCorner, voxelMinCorner, rObjOrigin, rObjDirection);
 			// normal = calculateNormalForRayAABBIntersection(voxelCenter, hitInfo.rayPosition + boxes[3].minCorner);
 			// Advance the ray to this new location (normal is accounted for in the function above)
@@ -378,7 +364,7 @@ float SceneIntersect(int checkWater)
 			hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
 			hitEmission = vec3(0.0);
 
-			hitColor = texture(voxelTexture, vec3(hitInfo.voxelCoords) / uVoxelGridSize).rbg;
+			hitColor = texture(voxelTexture, vec3(hitInfo.voxelCoords) / uVoxelGridSize).rgb;
 
 			// hitColor = vec3(0.4, 0.94, 0.29);
 			hitType = boxes[3].type;
