@@ -8,14 +8,13 @@ uniform mat4 uTallBoxInvMatrix;
 uniform mat4 uVoxelMeshInvMatrix;
 uniform sampler3D voxelTexture;
 uniform vec3 uVoxelGridSize;
+uniform float uVoxelSize;
 
 #include <pathtracing_uniforms_and_defines>
 const float epsilon = 0.0001;
 
 #define N_QUADS 1
 #define N_BOXES 4
-
-const float voxelSize = 10.0;
 
 //-----------------------------------------------------------------------
 
@@ -119,7 +118,7 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 
 	// gridDimension is the overall size of the grid, which if centered at the origin, is just gridMax. 
 	// It should be in world dimensions, for example: 1.453
-	vec3 gridDimension = vec3(uVoxelGridSize.x, uVoxelGridSize.y, uVoxelGridSize.z) * voxelSize;
+	vec3 gridDimension = vec3(uVoxelGridSize.x, uVoxelGridSize.y, uVoxelGridSize.z) * uVoxelSize;
 	// cellDimension is the size of each cell in the grid. Since we're at the origin, gridMin is 0, so it is just:
 	vec3 cellDimension = gridMax / vec3(gridResolution);
 	// Initialize our delta T and next crossing 
@@ -287,7 +286,7 @@ float SceneIntersect(int checkWater)
 			vec3 voxelPosition = vec3(voxelCoords) * ((voxelBox.maxCorner - voxelBox.minCorner)) / uVoxelGridSize;
 			// Transform the voxel position by min corner, that is the voxel's min corner
 			vec3 voxelMinCorner = voxelPosition + voxelBox.minCorner;
-			vec3 voxelMaxCorner = voxelMinCorner + voxelSize;
+			vec3 voxelMaxCorner = voxelMinCorner + uVoxelSize;
 			d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOriginOriginal, rObjDirection, normal, isRayExiting);
 			t = d;
 			hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
@@ -578,7 +577,7 @@ void SetupScene(void)
 	boxes[1] = Box(vec3(-86.0, -85.0, -80.0), vec3(86.0, 85.0, 80.0), z, vec3(0.2, 0.8, 0.2), DIFF);// Short Diffuse Box Right
 	boxes[2] = Box(vec3(0, 0, -1000), vec3(2000, 1000, 0), z, vec3(1), DIFF);// the Cornell Box interior 
 
-	boxes[3] = Box(vec3(-uVoxelGridSize * voxelSize * 0.5), vec3(uVoxelGridSize * voxelSize * 0.5), z, vec3(1), DIFF);// Voxels
+	boxes[3] = Box(vec3(-uVoxelGridSize * uVoxelSize * 0.5), vec3(uVoxelGridSize * uVoxelSize * 0.5), z, vec3(1), DIFF);// Voxels
 
 	quads[0] = Quad(vec3(0.0, -1.0, 0.0), vec3(213.0, 548.0, -332.0), vec3(843.0, 548.0, -332.0), vec3(343.0, 548.0, -227.0), vec3(213.0, 548.0, -227.0), L1, z, LIGHT);// Area Light Rectangle in ceiling
 }	
