@@ -18,32 +18,46 @@ export function calculateIndex(x, y, z, width, height) {
 }
 
 /**
- * Represents a voxel geometry with its position, size, and texture coordinates in a 3D space.
- * This class is used to manage and process the data associated with a single voxel geometry,
- * including loading voxel data from files and converting its properties to a format suitable for shaders.
+ * VoxelGeometry represents a single voxel geometry with its position, size, and texture coordinates in 3D space.
+ * This class is responsible for managing and processing data associated with voxel geometry. It includes functionality
+ * for loading voxel data from .vox files, creating 3D textures and meshes for rendering, and preparing data in a format
+ * suitable for shader programs.
+ *
+ * The class provides a static `create` method for convenient instantiation and asynchronous loading of voxel data.
+ * It also encapsulates the internal logic for processing voxel data and creating associated THREE.js objects,
+ * keeping these details abstracted from the user.
  *
  * @class
- * @param {THREE.Vector3} position - The world position of the voxel geometry.
- * @param {string} filepath - The filepath where the related .vox file can be found. Defaults to the origin.
+ * @param {string} filepath - The filepath where the related .vox file can be found.
+ * @param {THREE.Vector3} [position=new THREE.Vector3(0, 0, 0)] - The world position of the voxel geometry.
  * @param {number} [voxelSize=1] - The size of each individual voxel. Defaults to 1.
  *
- * @property {THREE.Vector3} gridDimensions - The dimensions of the voxel grid.
+ * @property {THREE.Vector3} gridDimensions - The dimensions of the voxel grid, set after loading voxel data.
  * @property {THREE.Vector3} textureMinPosition - The minimum position of the voxel in the texture atlas.
  * @property {THREE.Vector3} textureMaxPosition - The maximum position of the voxel in the texture atlas.
+ * @property {THREE.Vector3} textureMinPositionNormalized - The minimum position of the voxel in the texture atlas, normalized to [0,1].
+ * @property {THREE.Vector3} textureMaxPositionNormalized - The maximum position of the voxel in the texture atlas, normalized to [0,1].
+ * @property {Uint8Array} data - The processed voxel data as a flat array.
+ * @property {THREE.Mesh} mesh - The THREE.js mesh created from the voxel data.
+ * @property {THREE.Data3DTexture} texture - The THREE.js 3D texture representing the voxel data.
+ * @property {THREE.MeshPhysicalMaterial} material - The THREE.js material applied to the voxel mesh.
  *
- * @see {@link VoxelLoader}
+ * @see {@link VoxelLoader} - For handling multiple voxel geometries and compiling them into a texture atlas.
  */
 export class VoxelGeometry {
   gridDimensions;
   textureMinPosition;
   textureMaxPosition;
+  textureMinPositionNormalized;
+  textureMaxPositionNormalized;
   data;
   mesh;
   texture;
   material;
+  shaderData;
   constructor(filepath, position = new THREE.Vector3(0, 0, 0), voxelSize = 1) {
-    this.position = position;
     this.filePath = filepath;
+    this.position = position;
     this.voxelSize = voxelSize;
   }
 
@@ -77,29 +91,6 @@ export class VoxelGeometry {
       console.error("Error creating VoxelGeometry:", error);
       throw error; // Rethrow so it can be caught in loadFilesAndStart
     }
-  }
-
-  /**
-   * Returns the current state as datafor the shader
-   * @returns {Float32Array} - Data needed for shader structs.
-   */
-  toFloatArray() {
-    // Convert position and paletteID to a Float32Array
-    return new Float32Array([
-      this.position.x,
-      this.position.y,
-      this.position.z,
-      this.voxelSize,
-      this.gridDimensions.x,
-      this.gridDimensions.y,
-      this.gridDimensions.z,
-      this.textureMinPosition.x,
-      this.textureMinPosition.y,
-      this.textureMinPosition.z,
-      this.textureMaxPosition.x,
-      this.textureMaxPosition.y,
-      this.textureMaxPosition.z,
-    ]);
   }
 
   /**
@@ -140,8 +131,11 @@ export class VoxelGeometry {
     });
 
     let voxelMesh = new THREE.Mesh(boxGeometry, voxelMaterial);
-    voxelMesh.visible = false; // Not needed for ray tracing.
-    voxelMesh.position.set(position.x, position.y, position.z);
+
+    // Not needed for ray tracing, since we will be interpreting a 3D texture to render.
+    voxelMesh.visible = false;
+    const { x, y, z } = position;
+    voxelMesh.position.set(x, y, z);
     return { voxelMesh, voxelTexture, voxelMaterial };
   }
 
@@ -200,5 +194,29 @@ export class VoxelGeometry {
     });
 
     return { voxelData, size };
+  }
+
+  /**
+   * Returns the current state as datafor the shader
+   * @returns {Float32Array} - Data needed for shader structs.
+   */
+  toFloatArray() {
+    // Create an array of 26 floats for use in the shader.
+    const invMatrix = new THREE.Matrix4(this.mesh.matrixWorld).invert();
+    const matrixElements = invMatrix.elements;
+
+    return new Float32Array([
+      this.voxelSize,
+      this.gridDimensions.x,
+      this.gridDimensions.y,
+      this.gridDimensions.z,
+      this.textureMinPosition.x,
+      this.textureMinPosition.y,
+      this.textureMinPosition.z,
+      this.textureMaxPosition.x,
+      this.textureMaxPosition.y,
+      this.textureMaxPosition.z,
+      ...matrixElements,
+    ]);
   }
 }

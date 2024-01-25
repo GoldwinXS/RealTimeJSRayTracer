@@ -13,7 +13,7 @@ import {
   updateCameraVectors,
   setCameraInfoElementStyle,
 } from "./js/camera/cameraUtils";
-import { VoxelGeometry } from "./js/data/VoxelGeometry";
+import { VoxelGeometryManager } from "./js/data/MultiVoxelLoader";
 
 function createConfiguredMesh(
   settings,
@@ -120,6 +120,12 @@ function initSceneData(sceneSettings) {
   };
   pathTracingUniforms.uVoxelSize = {
     value: sceneSettings.voxels.voxelGeometry.voxelSize,
+  };
+  pathTracingUniforms.uVoxelDataTexure = {
+    value: sceneSettings.voxels.voxelManager.shaderData,
+  };
+  pathTracingUniforms.uNumberOfVoxelGeometries = {
+    value: sceneSettings.voxelManager,
   };
 }
 
@@ -352,19 +358,21 @@ function startApp() {
 
 async function loadFilesAndStart(sceneSettings) {
   // Handle loading of any files ayncronously.
-  VoxelGeometry.create(
+  // Instantiate the manager
+  const voxelManager = new VoxelGeometryManager();
+
+  await voxelManager.addGeometry(
     "./models/castle.vox",
     new THREE.Vector3(631, 310, -250),
-    1
-  )
-    .then((voxelGeometry) => {
-      // Add the geometry object to our data.
-      sceneSettings.voxels.voxelGeometry = voxelGeometry;
-      // Now start the application
-      initSceneData(sceneSettings);
-      startApp();
-    })
-    .catch((error) => console.error(`Problem loading .vox geometry, ${error}`));
+    10
+  );
+
+  // Set up scene settings with the first geometry
+  sceneSettings.voxels.voxelGeometry = voxelManager.voxelGeometries[0];
+  sceneSettings.voxels.voxelManager = voxelManager;
+
+  initSceneData(sceneSettings);
+  startApp();
 }
 
 loadFilesAndStart(sceneSettings);

@@ -3,12 +3,45 @@ precision highp int;
 precision highp sampler2D;
 precision highp sampler3D;
 
-uniform mat4 uShortBoxInvMatrix;
 uniform mat4 uTallBoxInvMatrix;
 uniform mat4 uVoxelMeshInvMatrix;
+
+// Voxel related uniforms.
 uniform sampler3D voxelTexture;
 uniform vec3 uVoxelGridSize;
 uniform float uVoxelSize;
+uniform int uNumberOfVoxelGeometries;
+uniform sampler2D uVoxelDataTexure;
+
+// Define the struct in GLSL
+struct VoxelGeometry {
+	vec3 position;
+	float voxelSize;
+	vec3 gridDimensions;
+	vec3 textureMinPosition;
+	vec3 textureMaxPosition;
+};
+
+// Function to read voxel data from the texture
+VoxelGeometry getVoxelGeometry(int voxelIndex) {
+	float floatPerVoxel = 13.0; // Total number of floats per voxel
+	float texelIndex = float(voxelIndex) * floatPerVoxel / 4.0; // 4 floats per RGBA pixel
+	float row = 0.0; // Assuming you're using a single row for the data
+
+	VoxelGeometry voxel;
+	vec4 data1 = texture2D(uVoxelDataTexure, vec2(texelIndex, row));
+	vec4 data2 = texture2D(uVoxelDataTexure, vec2(texelIndex + 0.25, row)); // Adjusted for normalized coordinates
+	vec4 data3 = texture2D(uVoxelDataTexure, vec2(texelIndex + 0.50, row)); // Adjusted for normalized coordinates
+	vec4 data4 = texture2D(uVoxelDataTexure, vec2(texelIndex + 0.75, row)); // Adjusted for normalized coordinates
+
+	voxel.position = data1.rgb;
+	voxel.voxelSize = data1.a;
+	voxel.gridDimensions = data2.rgb;
+	voxel.textureMinPosition = vec3(data2.a, data3.r, data3.g);
+	voxel.textureMaxPosition = vec3(data3.b, data3.a, data4.r);
+
+	return voxel;
+}
 
 #include <pathtracing_uniforms_and_defines>
 const float epsilon = 0.0001;
@@ -100,7 +133,7 @@ void getTandDeltaT(inout float t, inout float deltaT, float rayDirection, float 
 	}
 }
 
-ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
+ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin, Box voxelBox) {
 	// Make sure we're normalized 
 	// localRayDir = normalize(localRayDir);
 	vec3 rayPosition = localRayOrigin;
@@ -109,12 +142,12 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin) {
 	ivec3 gridResolution = ivec3(uVoxelGridSize.x, uVoxelGridSize.y, uVoxelGridSize.z);
 	// Convert worldspace coords which can be -ve coords to all +ve coords by subtracting min corner
 	// If max=1 and min=-1 then our new max will be 1 - (-1) = 2
-	vec3 gridMax = boxes[3].maxCorner - boxes[3].minCorner;
+	vec3 gridMax = voxelBox.maxCorner - voxelBox.minCorner;
 	// Here, subtracting from a negative number will move the cube in a positive direction in that case
 	// so if min=-1, the new min will now be -1 - (-1)  = -1 + 1 = 0
 	vec3 gridMin = vec3(0);
 	// translate the ray's origin so it respects the transformation we've done to the object coordinates, this is in object space, for example, 1.453
-	vec3 rayOrigGrid = localRayOrigin - boxes[3].minCorner;
+	vec3 rayOrigGrid = localRayOrigin - voxelBox.minCorner;
 
 	// gridDimension is the overall size of the grid, which if centered at the origin, is just gridMax. 
 	// It should be in world dimensions, for example: 1.453
@@ -246,23 +279,6 @@ float SceneIntersect(int checkWater)
 	}
 	objectCount++;
 
-	// SHORT DIFFUSE BOX
-	// transform ray into Short Box's object space
-	rObjOrigin = vec3(uShortBoxInvMatrix * vec4(rayOrigin, 1.0));
-	rObjDirection = vec3(uShortBoxInvMatrix * vec4(rayDirection, 0.0));
-	d = BoxIntersect(boxes[1].minCorner, boxes[1].maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
-
-	if(d < t) {
-		t = d;
-		// transfom normal back into world space
-		hitNormal = transpose(mat3(uShortBoxInvMatrix)) * normal;
-		hitEmission = boxes[1].emission;
-		hitColor = boxes[1].color;
-		hitType = boxes[1].type;
-		hitObjectID = float(objectCount);
-	}
-	objectCount++;
-
 	// Voxels
 	// Transform the ray into the coordinateg space of the box containing the voxels 
 	Box voxelBox = boxes[3];
@@ -277,7 +293,7 @@ float SceneIntersect(int checkWater)
 			rObjOrigin += d * rObjDirection * 1.00001;
 		}
 		// Get the position the voxel was hit at between 0 and voxelGridZise, as well as the ray's position 
-		ivec3 voxelCoords = getVoxelPosition(rObjDirection, rObjOrigin);
+		ivec3 voxelCoords = getVoxelPosition(rObjDirection, rObjOrigin, voxelBox);
 		// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
 		if(voxelCoords != ivec3(-1)) {
 			// Back off the ray origin so that we don't mistakenly put it inside a voxel 
@@ -298,6 +314,29 @@ float SceneIntersect(int checkWater)
 		}
 	}
 	objectCount++;
+
+// // Iterate over all voxel geometries
+// 	for(int i = 0; i < uNumberOfVoxelGeometries; i++) {
+// 		VoxelGeometry voxelGeom = getVoxelGeometry(i);
+
+//     // Calculate individual voxel box bounds
+// 		vec3 voxelMinCorner = voxelGeom.position - voxelGeom.gridDimensions * 0.5 * voxelGeom.voxelSize;
+// 		vec3 voxelMaxCorner = voxelGeom.position + voxelGeom.gridDimensions * 0.5 * voxelGeom.voxelSize;
+
+//     // Check intersection with the voxel box
+// 		float voxelHit = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOriginOriginal, rObjDirection, normal, isRayExiting);
+// 		if(voxelHit < t) {
+// 			t = voxelHit;
+// 			hitNormal = transpose(mat3(uVoxelMeshInvMatrix)) * normal;
+// 			hitEmission = vec3(0.0);
+
+//         // Calculate texture coordinates for the hit voxel
+// 			vec3 voxelTextureCoords = (rObjOriginOriginal + rObjDirection * t - voxelMinCorner) / voxelGeom.voxelSize;
+// 			hitColor = texture(voxelTexture, voxelTextureCoords).rgb;
+// 			hitType = voxelBox.type;
+// 			hitObjectID = float(objectCount);
+// 		}
+// 	}
 
 	// color surfaces beneath the water
 	vec3 underwaterHitPos = rayOrigin + rayDirection * t;

@@ -14,6 +14,7 @@ export const sceneSettings = {
   },
   voxels: {
     voxelGeometry: null,
+    voxelManager: null,
   },
 
   // Path Tracing Elements
