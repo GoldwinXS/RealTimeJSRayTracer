@@ -37,6 +37,7 @@ export class VoxelGeometryManager {
   voxelTexture;
   currentVoxelIndex = 0;
   totalVoxelGeometries = 0;
+  textureWidth;
 
   /**
    * Adds and loads a voxel geometry asynchronously.
@@ -63,6 +64,16 @@ export class VoxelGeometryManager {
     this.#update();
   }
 
+  setGeomPosition(id, position) {
+    this.voxelGeometries[id].setPosition(position);
+    this.updateShaderTextureData();
+  }
+
+  setGeomRotation(id, axis, degrees) {
+    this.voxelGeometries[id].setRotation(axis, degrees);
+    this.updateShaderTextureData();
+  }
+
   /**
    * Updates the data needed to render the voxel geometries.
    */
@@ -76,7 +87,15 @@ export class VoxelGeometryManager {
       atlasData,
       this.maxTextureDimensions
     );
-    this.shaderData = this.#prepareShaderData(this.voxelGeometries);
+    this.updateShaderTextureData();
+  }
+
+  updateShaderTextureData() {
+    const { dataTexture, textureWidth } = this.#prepareShaderData(
+      this.voxelGeometries
+    );
+    this.shaderData = dataTexture;
+    this.textureWidth = textureWidth;
   }
 
   /**
@@ -210,6 +229,7 @@ export class VoxelGeometryManager {
     voxelTexture.unpackAlignment = 1;
     voxelTexture.needsUpdate = true;
     voxelTexture.generateMipmaps = false;
+    return voxelTexture;
   }
 
   /**
@@ -218,18 +238,26 @@ export class VoxelGeometryManager {
    * @returns {Float32Array} - An array of data for the shader.
    */
   #prepareShaderData(voxelGeometries) {
-    const floatsPerVoxel = 12; // Assuming each voxel has 12 float values
+    const floatsPerVoxel = 28; // Assuming each voxel has 28 float values
     const totalFloats = Object.keys(voxelGeometries).length * floatsPerVoxel;
     const textureWidth = Math.ceil(totalFloats / 4); // 4 floats per RGBA pixel
-    const textureHeight = 1; // Only one row
+    const textureHeight = 1;
 
     const data = new Float32Array(textureWidth * 4 * textureHeight);
     let dataIndex = 0;
 
-    Object.values(voxelGeometries).forEach((geom) => {
+    Object.values(voxelGeometries).forEach((geom, index) => {
       const voxelFloats = geom.toFloatArray();
+      console.log(`Geometry ${index}:`, voxelFloats);
       for (let i = 0; i < voxelFloats.length; i++) {
         data[dataIndex++] = voxelFloats[i];
+        if (i % 4 === 3) {
+          // Log after every 4th float to represent an RGBA pixel
+          console.log(
+            `Pixel ${dataIndex / 4 - 1}:`,
+            data.slice(dataIndex - 4, dataIndex)
+          );
+        }
       }
     });
 
@@ -242,6 +270,7 @@ export class VoxelGeometryManager {
     );
     dataTexture.needsUpdate = true;
 
-    return dataTexture;
+    console.log(`Final data array:`, data);
+    return { dataTexture, textureWidth };
   }
 }

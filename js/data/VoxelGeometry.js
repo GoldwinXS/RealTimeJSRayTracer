@@ -136,6 +136,8 @@ export class VoxelGeometry {
     voxelMesh.visible = false;
     const { x, y, z } = position;
     voxelMesh.position.set(x, y, z);
+    voxelMesh.updateMatrixWorld(true);
+
     return { voxelMesh, voxelTexture, voxelMaterial };
   }
 
@@ -196,13 +198,24 @@ export class VoxelGeometry {
     return { voxelData, size };
   }
 
+  setPosition(position) {
+    this.mesh.position.set(position);
+    this.mesh.updateMatrixWorld(true);
+  }
+
+  setRotation(axis, degrees) {
+    const radians = degrees * (Math.PI / 180);
+    this.mesh.rotation[axis] = radians;
+    this.mesh.updateMatrixWorld(true);
+  }
+
   /**
    * Returns the current state as datafor the shader
    * @returns {Float32Array} - Data needed for shader structs.
    */
   toFloatArray() {
     // Create an array of 26 floats for use in the shader.
-    const invMatrix = new THREE.Matrix4(this.mesh.matrixWorld).invert();
+    const invMatrix = this.mesh.matrixWorld.invert();
     const matrixElements = invMatrix.elements;
 
     return new Float32Array([
@@ -210,12 +223,15 @@ export class VoxelGeometry {
       this.gridDimensions.x,
       this.gridDimensions.y,
       this.gridDimensions.z,
-      this.textureMinPosition.x,
-      this.textureMinPosition.y,
-      this.textureMinPosition.z,
-      this.textureMaxPosition.x,
-      this.textureMaxPosition.y,
-      this.textureMaxPosition.z,
+      this.textureMinPositionNormalized.x,
+      this.textureMinPositionNormalized.y,
+      this.textureMinPositionNormalized.z,
+      this.textureMaxPositionNormalized.x,
+      this.textureMaxPositionNormalized.y,
+      this.textureMaxPositionNormalized.z,
+      // Padding for easier parsing in the shader
+      0,
+      0,
       ...matrixElements,
     ]);
   }

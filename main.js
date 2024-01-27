@@ -116,16 +116,19 @@ function initSceneData(sceneSettings) {
   pathTracingUniforms.uTallBoxInvMatrix2 = { value: new THREE.Matrix4() };
   pathTracingUniforms.uVoxelMeshInvMatrix = { value: new THREE.Matrix4() };
   pathTracingUniforms.voxelTexture = {
-    value: sceneSettings.voxels.voxelGeometry.texture,
+    value: sceneSettings.voxels.voxelManager.voxelTexture,
   };
   pathTracingUniforms.uVoxelSize = {
     value: sceneSettings.voxels.voxelGeometry.voxelSize,
   };
-  pathTracingUniforms.uVoxelDataTexure = {
+  pathTracingUniforms.uVoxelDataTexture = {
     value: sceneSettings.voxels.voxelManager.shaderData,
   };
   pathTracingUniforms.uNumberOfVoxelGeometries = {
-    value: sceneSettings.voxelManager,
+    value: sceneSettings.voxels.voxelManager.totalVoxelGeometries,
+  };
+  pathTracingUniforms.uVoxelDataTextureWidth = {
+    value: sceneSettings.voxels.voxelManager.textureWidth,
   };
 }
 
@@ -362,9 +365,34 @@ async function loadFilesAndStart(sceneSettings) {
   const voxelManager = new VoxelGeometryManager();
 
   await voxelManager.addGeometry(
-    "./models/castle.vox",
-    new THREE.Vector3(631, 310, -250),
-    10
+    "./models/teapot.vox",
+    new THREE.Vector3(300, 10, -320),
+    2
+  );
+  await voxelManager.addGeometry(
+    "./models/chr_sword.vox",
+    new THREE.Vector3(310, 10, -320),
+    2
+  );
+  await voxelManager.addGeometry(
+    "./models/chr_sword.vox",
+    new THREE.Vector3(320, 10, -320),
+    2
+  );
+  await voxelManager.addGeometry(
+    "./models/chr_sword.vox",
+    new THREE.Vector3(330, 10, -320),
+    2
+  );
+  await voxelManager.addGeometry(
+    "./models/chr_sword.vox",
+    new THREE.Vector3(340, 10, -320),
+    2
+  );
+  await voxelManager.addGeometry(
+    "./models/chr_sword.vox",
+    new THREE.Vector3(350, 10, -320),
+    2
   );
 
   // Set up scene settings with the first geometry
