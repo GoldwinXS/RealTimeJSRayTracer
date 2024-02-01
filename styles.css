@@ -12,3 +12,16 @@ body {
     user-select: none;
     -webkit-user-select: none;
 }
+
+  #react-root {
+    position: relative; 
+    z-index: 1000;
+}
+
+.control-panel {
+    position: absolute;
+    top: 10px; /* Adjust as needed */
+    right: 10px; /* Adjust as needed */
+    z-index: 1000; /* Ensure it's above other elements */
+    width: auto;
+}

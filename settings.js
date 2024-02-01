@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { SpawnObjectManager } from "./js/SpawnObjectManager";
 
 export const sceneSettings = {
   // Box Objects
@@ -16,7 +17,7 @@ export const sceneSettings = {
     voxelGeometry: null,
     voxelManager: null,
   },
-
+  spawnObjectManager: new SpawnObjectManager(),
   // Path Tracing Elements
   pathTracing: {
     vertexShader: null,
@@ -56,7 +57,7 @@ export const sceneSettings = {
   // General Settings and Utilities
   oldYawRotation: null,
   oldPitchRotation: null,
-  isPaused: true,
+  isPaused: false,
   ableToEngagePointerLock: true,
   cameraInfoElement: document.getElementById("cameraInfo"),
   blueNoiseTexture: null,
@@ -79,6 +80,7 @@ export const sceneSettings = {
     1,
     1000
   ),
+  isUIActive: false,
   cameraRotationSpeed: 1,
   cameraFlightSpeed: 300,
   PI_2: Math.PI / 2,

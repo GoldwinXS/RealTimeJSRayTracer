@@ -14,6 +14,12 @@ import {
   setCameraInfoElementStyle,
 } from "./js/camera/cameraUtils";
 import { VoxelGeometryManager } from "./js/data/MultiVoxelLoader";
+import {
+  importFromWindow,
+  exportToWindow,
+  uiStatePropertyNames,
+} from "./js/uiState";
+import { RGBELoader } from "./js/RGBELoader";
 
 function createConfiguredMesh(
   settings,
@@ -94,32 +100,27 @@ function initSceneData(sceneSettings) {
     }
   );
 
-  //   sceneSettings.voxels.voxelGeometry.mesh.visible = false;
-  const degree = -90;
-  const radians = degree * (Math.PI / 180); // Convert degrees to radians
-
-  sceneSettings.voxels.voxelGeometry.mesh.rotation.x = radians;
-  //   sceneSettings.voxels.voxelGeometry.mesh.position.set(631, 310, -250);
-  sceneSettings.voxels.voxelGeometry.mesh.updateMatrixWorld(true); // 'true' forces immediate matrix update
-
   // Add meshes.
   sceneSettings.pathTracing.scene.add(sceneSettings.shortBox.mesh);
-  sceneSettings.pathTracing.scene.add(sceneSettings.voxels.voxelGeometry.mesh);
   sceneSettings.pathTracing.scene.add(sceneSettings.tallBox.mesh);
+  let hdrLoader = new RGBELoader();
+  hdrLoader.type = THREE.FloatType; // override THREE's default of HalfFloatType
 
+  let hdrTexture = hdrLoader.load("textures/daytime.hdr", function (texture) {
+    return texture;
+  });
   sceneSettings.controls = setupControls(sceneSettings);
   sceneSettings.controls.addEventListeners(sceneSettings);
   // scene/demo-specific uniforms go here
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
+  pathTracingUniforms.tHDRTexture = { value: hdrTexture };
+
   pathTracingUniforms.uShortBoxInvMatrix = { value: new THREE.Matrix4() };
   pathTracingUniforms.uTallBoxInvMatrix = { value: new THREE.Matrix4() };
   pathTracingUniforms.uTallBoxInvMatrix2 = { value: new THREE.Matrix4() };
   pathTracingUniforms.uVoxelMeshInvMatrix = { value: new THREE.Matrix4() };
   pathTracingUniforms.voxelTexture = {
     value: sceneSettings.voxels.voxelManager.voxelTexture,
-  };
-  pathTracingUniforms.uVoxelSize = {
-    value: sceneSettings.voxels.voxelGeometry.voxelSize,
   };
   pathTracingUniforms.uVoxelDataTexture = {
     value: sceneSettings.voxels.voxelManager.shaderData,
@@ -161,14 +162,7 @@ function setupPathTracing(sceneSettings) {
 
   // Setup unchanging uniforms for the path tracing shader.
   setupUniforms(sceneSettings);
-  sceneSettings.pathTracing.uniforms.uVoxelGridSize = {
-    type: "vec3",
-    value: new THREE.Vector3(
-      sceneSettings.voxels.voxelGeometry.gridDimensions.x,
-      sceneSettings.voxels.voxelGeometry.gridDimensions.y,
-      sceneSettings.voxels.voxelGeometry.gridDimensions.z
-    ),
-  };
+
   // Path Tracing Shader
   loadShaderAndCreateMesh(sceneSettings, {
     vertexShaderPath: "shaders/common_PathTracing_Vertex.glsl",
@@ -211,6 +205,11 @@ function setupPathTracing(sceneSettings) {
 }
 
 function animate() {
+  // Extract any changes from the UI
+  importFromWindow(sceneSettings, uiStatePropertyNames);
+  sceneSettings.spawnObjectManager.executeCommands(
+    sceneSettings.voxels.voxelManager
+  );
   // reset flags
   sceneSettings.cameraIsMoving = false;
   // Update variables
@@ -230,7 +229,10 @@ function animate() {
   sceneSettings.cameraIsMoving = cameraIsMoving;
 
   updateCameraVectors(sceneSettings);
-  sceneSettings.isPaused = sceneSettings.controls.handleInput(sceneSettings);
+
+  if (!sceneSettings.isUIActive) {
+    sceneSettings.isPaused = sceneSettings.controls.handleInput(sceneSettings);
+  }
 
   // the following gives us a rotation quaternion (4D vector), which will be useful for
   // rotating scene objects to match the camera's rotation
@@ -242,21 +244,29 @@ function animate() {
   sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix.value
     .copy(sceneSettings.tallBox.mesh.matrixWorld)
     .invert();
-  sceneSettings.pathTracing.uniforms.uShortBoxInvMatrix.value
-    .copy(sceneSettings.shortBox.mesh.matrixWorld)
-    .invert();
-  // sceneSettings.voxels.voxelGeometry.mesh.rotation.y = sceneSettings.voxels.voxelGeometry.mesh.rotation.y + 0.001
-  // sceneSettings.voxels.voxelGeometry.mesh.rotation.z = sceneSettings.voxels.voxelGeometry.mesh.rotation.z + 0.001
-  sceneSettings.pathTracing.uniforms.uVoxelMeshInvMatrix.value
-    .copy(sceneSettings.voxels.voxelGeometry.mesh.matrixWorld)
-    .invert();
+
+  let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
+
+  pathTracingUniforms.voxelTexture = {
+    value: sceneSettings.voxels.voxelManager.voxelTexture,
+  };
+  pathTracingUniforms.uVoxelDataTexture = {
+    value: sceneSettings.voxels.voxelManager.shaderData,
+  };
+  pathTracingUniforms.uNumberOfVoxelGeometries = {
+    value: sceneSettings.voxels.voxelManager.totalVoxelGeometries,
+  };
+  pathTracingUniforms.uVoxelDataTextureWidth = {
+    value: sceneSettings.voxels.voxelManager.textureWidth,
+  };
+  // sceneSettings.voxels.voxelManager.updateShaderData();
 
   // INFO
   const camPosition = sceneSettings.cameraControls.object.position;
   const numberOfRays = Math.round(
-    sceneSettings.context.drawingBufferHeight *
-      sceneSettings.context.drawingBufferWidth *
-      sceneSettings.pixelRatio
+    sceneSettings.context?.drawingBufferHeight *
+      sceneSettings.context?.drawingBufferWidth *
+      sceneSettings?.pixelRatio
   );
   sceneSettings.cameraInfoElement.innerHTML =
     "FOV: " +
@@ -364,41 +374,21 @@ async function loadFilesAndStart(sceneSettings) {
   // Instantiate the manager
   const voxelManager = new VoxelGeometryManager();
 
-  await voxelManager.addGeometry(
-    "./models/teapot.vox",
-    new THREE.Vector3(300, 10, -320),
-    2
-  );
-  await voxelManager.addGeometry(
-    "./models/chr_sword.vox",
-    new THREE.Vector3(310, 10, -320),
-    2
-  );
-  await voxelManager.addGeometry(
-    "./models/chr_sword.vox",
-    new THREE.Vector3(320, 10, -320),
-    2
-  );
-  await voxelManager.addGeometry(
-    "./models/chr_sword.vox",
-    new THREE.Vector3(330, 10, -320),
-    2
-  );
-  await voxelManager.addGeometry(
-    "./models/chr_sword.vox",
-    new THREE.Vector3(340, 10, -320),
-    2
-  );
-  await voxelManager.addGeometry(
-    "./models/chr_sword.vox",
-    new THREE.Vector3(350, 10, -320),
-    2
-  );
+  // await voxelManager.addGeometry(
+  //   "./models/teapot.vox",
+  //   new THREE.Vector3(300, 10, -320),
+  //   5
+  // );
 
+  // voxelManager.setGeomRotation(0, "x", -90);
+  // // voxelManager.setGeomRotation(0, "y", -90);
+  // voxelManager.setGeomPosition(0, [300, 200, -300]);
   // Set up scene settings with the first geometry
   sceneSettings.voxels.voxelGeometry = voxelManager.voxelGeometries[0];
   sceneSettings.voxels.voxelManager = voxelManager;
 
+  // Update the state for the UI
+  exportToWindow(sceneSettings, uiStatePropertyNames);
   initSceneData(sceneSettings);
   startApp();
 }

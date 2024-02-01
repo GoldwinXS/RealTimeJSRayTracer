@@ -4,6 +4,8 @@ precision highp sampler2D;
 precision highp sampler3D;
 
 uniform mat4 uTallBoxInvMatrix;
+uniform sampler2D tHDRTexture;
+uniform float uHDRI_Exposure;
 
 // Voxel related uniforms.
 uniform sampler3D voxelTexture;
@@ -96,9 +98,17 @@ Box boxes[N_BOXES];
 
 #include <pathtracing_sample_quad_light>
 
-#define STILL_WATER_LEVEL 100.0
+#define STILL_WATER_LEVEL -100.0
 #define WATER_WAVE_AMP 20.0
 #define WATER_COLOR vec3(0.6, 1.0, 1.0)
+
+vec3 Get_HDR_Color(vec3 rDirection) {
+	vec2 sampleUV;
+	sampleUV.x = atan(rDirection.x, -rDirection.z) * 0.15915494309 + 0.5;
+	sampleUV.y = acos(rDirection.y) * 0.318309886183790672;
+	vec3 texColor = texture(tHDRTexture, sampleUV).rgb;
+	return texColor * uHDRI_Exposure;
+}
 
 float getWaterWaveHeight(vec3 pos) {
 	float waveSpeed = uTime * 6.0;
@@ -430,6 +440,15 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 		checkWater = FALSE;
 
 		if(t == INFINITY) {
+
+			if(bounces == 0) {
+				pixelSharpness = 1.01;
+				vec3 environmentCol = Get_HDR_Color(rayDirection);
+
+				accumCol += environmentCol;
+				break;
+			}
+
 			if(willNeedReflectionRay == TRUE) {
 				mask = reflectionMask;
 				rayOrigin = reflectionRayOrigin;
@@ -619,9 +638,22 @@ void SetupScene(void)
 
 	boxes[0] = Box(vec3(-82.0, -170.0, -80.0), vec3(82.0, 170.0, 80.0), z, vec3(1), SPEC);// Tall Mirror Box Left
 	boxes[1] = Box(vec3(-86.0, -85.0, -80.0), vec3(86.0, 85.0, 80.0), z, vec3(0.2, 0.8, 0.2), DIFF);// Short Diffuse Box Right
-	boxes[2] = Box(vec3(0, 0, -1000), vec3(2000, 1000, 0), z, vec3(1), DIFF);// the Cornell Box interior 
+	boxes[2] = Box(vec3(-1000, 0, -1000), vec3(1000, 2000, 1000), z, vec3(1), DIFF);
 
-	quads[0] = Quad(vec3(0.0, -1.0, 0.0), vec3(213.0, 548.0, -332.0), vec3(843.0, 548.0, -332.0), vec3(343.0, 548.0, -227.0), vec3(213.0, 548.0, -227.0), L1, z, LIGHT);// Area Light Rectangle in ceiling
+// Centered area light (Quad) in the ceiling of the box
+	float lightSideLength = 600.0; // Size of the light
+	float ceilingY = 2000.0; // Y coordinate of the ceiling
+	float halfBoxSize = 1000.0; // Half the size of the box
+	float halfLightSize = lightSideLength * 0.5;
+
+// Coordinates for the light
+	vec3 v0 = vec3(-halfLightSize, ceilingY, -halfLightSize);
+	vec3 v1 = vec3(halfLightSize, ceilingY, -halfLightSize);
+	vec3 v2 = vec3(halfLightSize, ceilingY, halfLightSize);
+	vec3 v3 = vec3(-halfLightSize, ceilingY, halfLightSize);
+
+	quads[0] = Quad(vec3(0.0, -1.0, 0.0), v0, v1, v2, v3, L1, z, LIGHT);
+
 }	
 
 // tentFilter from Peter Shirley's 'Realistic Ray Tracing (2nd Edition)' book, pg. 60		
