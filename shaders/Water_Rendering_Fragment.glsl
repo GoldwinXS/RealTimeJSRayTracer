@@ -50,6 +50,18 @@ VoxelGeometry getVoxelGeometry(int voxelIndex) {
 	return voxel;
 }
 
+// struct LightSource {
+// 	vec3 position;
+// 	float size;
+// };
+
+// LightSource getLightSources() {
+// 	vec4 temp = texture2D(uVoxelDataTexture, vec2((texelIndex + 1.0) / uVoxelDataTextureWidth, row));
+// 	vec3 position = temp.rgb;
+// 	float size = temp.a;
+// 	return LightSource(position, size);
+// }
+
 #include <pathtracing_uniforms_and_defines>
 const float epsilon = 0.0001;
 
@@ -60,9 +72,9 @@ const float epsilon = 0.0001;
 
 vec3 rayOrigin, rayDirection;
 // recorded intersection data:
-vec3 hitNormal, hitEmission, hitColor;
+vec3 hitNormal, hitEmission, hitColor, voxelCenter;
 vec2 hitUV;
-float hitObjectID;
+float hitObjectID, voxelSize;
 int hitType = -100;
 
 struct Quad {
@@ -81,6 +93,11 @@ struct Box {
 	vec3 emission;
 	vec3 color;
 	int type;
+};
+
+struct Sphere {
+	vec3 position;
+	float radius;
 };
 
 Quad quads[N_QUADS];
@@ -311,17 +328,16 @@ float SceneIntersect(int checkWater)
 		rObjOrigin = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayOrigin, 1.0));
 		rObjDirection = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayDirection, 0.0));
 		vec3 rObjOriginOriginal = rObjOrigin;
-
 		// Check if the ray will intersect with the voxel volume at all
 		d = BoxIntersect(voxelBox.minCorner, voxelBox.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
 		if(d < t) {
-		// If we have a hit with the volume, then translate the ray so that it is touching the box 
+			// If we have a hit with the volume, then translate the ray so that it is touching the box 
 			if(isRayExiting == FALSE) {
 				rObjOrigin += d * rObjDirection * 1.00001;
 			}
-		// Get the position the voxel was hit at between 0 and voxelGridZise, as well as the ray's position 
+			// Get the position the voxel was hit at between 0 and voxelGridZise, as well as the ray's position 
 			ivec3 voxelCoords = getVoxelPosition(rObjDirection, rObjOrigin, voxelBox, voxelGeometry);
-		// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
+			// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
 			if(voxelCoords != ivec3(-1)) {
 
 			// Back off the ray origin so that we don't mistakenly put it inside a voxel 
@@ -329,13 +345,11 @@ float SceneIntersect(int checkWater)
 			// Scale voxel coordinate space to voxel model space 
 				vec3 voxelPosition = vec3(voxelCoords) * ((voxelBox.maxCorner - voxelBox.minCorner)) / voxelGeometry.gridDimensions;
 
-			// Transform the voxel position by min corner, that is the voxel's min corner
+				// Transform the voxel position by min corner, that is the voxel's min corner
 				vec3 voxelMinCorner = voxelPosition + voxelBox.minCorner;
 				vec3 voxelMaxCorner = voxelMinCorner + voxelGeometry.voxelSize;
 				d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOriginOriginal, rObjDirection, normal, isRayExiting);
-				t = d;
-				hitNormal = transpose(mat3(voxelGeometry.voxelMeshInvMatrix)) * normal;
-				hitEmission = vec3(0.0);
+
 				// Normalize cellIndex to a 0-1 range within the voxel geometry's local space.
 				vec3 normalizedCoords = vec3(voxelCoords) / voxelGeometry.gridDimensions;
 
@@ -343,9 +357,21 @@ float SceneIntersect(int checkWater)
 				// This is done by scaling the normalized coordinates to the size of the segment (textureMaxPosition - textureMinPosition)
 				// and then translating them to the starting position of the segment (textureMinPosition).
 				vec3 atlasCoords = voxelGeometry.textureMinPosition + normalizedCoords * (voxelGeometry.textureMaxPosition - voxelGeometry.textureMinPosition);
+				vec4 voxelHitColor = texture(voxelTexture, atlasCoords).rgba;
 
-				hitColor = texture(voxelTexture, atlasCoords).rgb;
-				hitType = voxelBox.type;
+				// Record the hit info. 
+				t = d;
+				hitColor = voxelHitColor.rgb;
+				hitType = int(voxelHitColor.a * 255.0);
+				hitEmission = vec3(0.0);
+
+				if(voxelHitColor.a * 255.0 == 20.0) {
+					hitType = int(voxelHitColor.a * 255.0);
+					hitEmission = hitColor;
+					voxelCenter = (voxelBox.minCorner + voxelBox.maxCorner) / 2.0;
+					voxelSize = voxelGeometry.voxelSize;
+				}
+				hitNormal = transpose(mat3(voxelGeometry.voxelMeshInvMatrix)) * normal;
 				hitObjectID = float(objectCount);
 				objectCount++;
 			}
@@ -400,6 +426,46 @@ float SceneIntersect(int checkWater)
 	return t;
 }
 
+vec3 sampleVoxelLight(vec3 x, vec3 nl, vec3 voxelCenter, float voxelSize, out float weight) {
+    // Jitter the light position within the voxel to simulate a small area light
+    // This is optional and can be adjusted or omitted based on desired accuracy
+	vec3 jitter = vec3(rng() - 0.5, rng() - 0.5, rng() - 0.5) * voxelSize;
+	vec3 lightPosition = voxelCenter + jitter;
+
+    // Calculate direction to light
+	vec3 dirToLight = lightPosition - x;
+	float distanceSquared = dot(dirToLight, dirToLight);
+	dirToLight = normalize(dirToLight);
+
+    // Calculate the solid angle subtended by the voxel. For simplicity, assume it's a point light
+    // Thus, we don't calculate cos_a_max as we did for the quad. Instead, we use a simpler attenuation model
+	float attenuation = 1.0 / distanceSquared;
+
+    // Calculate the dot product of the normal and the light direction
+	float dotNlRayDir = max(0.0, dot(nl, dirToLight));
+
+    // Weight by the attenuation and the angle between the light direction and the normal
+    // Adjust the weight calculation as needed for your specific lighting model
+	weight = attenuation * dotNlRayDir;
+	weight = clamp(weight, 0.0, 1.0);
+
+	return dirToLight;
+}
+
+// if(hitType == LIGHT) { // Assuming this is a light-emitting voxel
+// vec3 lightPosition = voxelPosition + voxelSize * 0.5; // Center of the voxel
+// vec3 toLight = lightPosition - x; // x is the intersection point
+// float distanceSquared = dot(toLight, toLight);
+// vec3 lightDir = normalize(toLight);
+// float attenuation = 1.0 / (1.0 + distanceSquared); // Simple distance-based attenuation
+
+//     // Calculate the contribution of this light source
+// float NdotL = max(dot(nl, lightDir), 0.0); // nl is the surface normal at hit point
+// vec3 lightContribution = hitEmission * NdotL * attenuation;
+
+// accumCol += mask * lightContribution; // Add the light contribution to the accumulated color
+// }
+
 //-----------------------------------------------------------------------------------------------------------------------------
 vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float objectID, out float pixelSharpness)
 //-----------------------------------------------------------------------------------------------------------------------------
@@ -421,6 +487,7 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 	float weight;
 	float thickness = 0.01; // 0.02
 	float hitObjectID;
+	bool voxelLight = false;
 
 	int diffuseCount = 0;
 	int previousIntersecType = -100;
@@ -474,11 +541,12 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 			objectColor = hitColor;
 			objectID = hitObjectID;
 		}
+
 		if(bounces == 1 && previousIntersecType == SPEC) {
 			objectNormal = nl;
 		}
 
-		if(hitType == LIGHT) {
+		if(hitType == LIGHT || hitType == 20) {
 			if(bounces == 0 || (bounces == 1 && previousIntersecType == SPEC))
 				pixelSharpness = 1.01;
 
@@ -490,6 +558,11 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 
 			if(sampleLight == TRUE || bounceIsSpecular == TRUE)
 				accumCol += mask * hitEmission;
+
+			if(hitType == 20) {
+				accumCol += mask * hitEmission;
+				sampleLight = TRUE;
+			}
 
 			if(willNeedReflectionRay == TRUE) {
 				mask = reflectionMask;
@@ -545,7 +618,7 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 				rayOrigin = x + nl * uEPS_intersect;
 				continue;
 			}
-
+			//dirToLight = sampleVoxelLight(x, nl, voxelCenter, voxelSize, weight);
 			dirToLight = sampleQuadLight(x, nl, quads[0], weight);
 			mask /= diffuseCount == 1 ? 0.6 : 1.0;
 			mask *= weight;
@@ -641,7 +714,7 @@ void SetupScene(void)
 	boxes[2] = Box(vec3(-1000, 0, -1000), vec3(1000, 2000, 1000), z, vec3(1), DIFF);
 
 // Centered area light (Quad) in the ceiling of the box
-	float lightSideLength = 600.0; // Size of the light
+	float lightSideLength = 1000.0; // Size of the light
 	float ceilingY = 2000.0; // Y coordinate of the ceiling
 	float halfBoxSize = 1000.0; // Half the size of the box
 	float halfLightSize = lightSideLength * 0.5;

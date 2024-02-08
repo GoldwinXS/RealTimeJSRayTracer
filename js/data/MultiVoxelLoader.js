@@ -34,6 +34,7 @@ export class VoxelGeometryManager {
   maxTextureDimensions = new THREE.Vector3(512, 512, 512); // Example size
   voxelGeometries = {};
   voxelData = [];
+  specialColors = {};
   voxelTexture;
   currentVoxelIndex = 0;
   totalVoxelGeometries = 0;
@@ -199,9 +200,26 @@ export class VoxelGeometryManager {
               this.maxTextureDimensions.y
             );
 
-            for (let i = 0; i < 4; i++) {
-              // Copy RGBA
-              atlasData[atlasIndex + i] = geometry.voxelData[localIndex + i];
+            const red = geometry.voxelData[localIndex + 0];
+            const green = geometry.voxelData[localIndex + 1];
+            const blue = geometry.voxelData[localIndex + 2];
+            const alpha = geometry.voxelData[localIndex + 3];
+
+            atlasData[atlasIndex + 0] = red;
+            atlasData[atlasIndex + 1] = green;
+            atlasData[atlasIndex + 2] = blue;
+            atlasData[atlasIndex + 3] = alpha > 0 ? 1 : 0;
+            const colorKey = this.#getColorKey({
+              red: red,
+              green: green,
+              blue: blue,
+            });
+            if (
+              this.specialColors &&
+              this.specialColors[colorKey] &&
+              alpha != 0
+            ) {
+              atlasData[atlasIndex + 3] = this.specialColors[colorKey];
             }
           }
         }
@@ -250,18 +268,11 @@ export class VoxelGeometryManager {
     const data = new Float32Array(textureWidth * 4 * textureHeight);
     let dataIndex = 0;
 
-    Object.values(voxelGeometries).forEach((geom, index) => {
+    // eslint-disable-next-line no-unused-vars
+    Object.values(voxelGeometries).forEach((geom, _) => {
       const voxelFloats = geom.toFloatArray();
-      console.log(`Geometry ${index}:`, voxelFloats);
       for (let i = 0; i < voxelFloats.length; i++) {
         data[dataIndex++] = voxelFloats[i];
-        if (i % 4 === 3) {
-          // Log after every 4th float to represent an RGBA pixel
-          console.log(
-            `Pixel ${dataIndex / 4 - 1}:`,
-            data.slice(dataIndex - 4, dataIndex)
-          );
-        }
       }
     });
 
@@ -274,7 +285,14 @@ export class VoxelGeometryManager {
     );
     dataTexture.needsUpdate = true;
 
-    console.log(`Final data array:`, data);
     return { dataTexture, textureWidth };
+  }
+
+  #getColorKey(color) {
+    return `${color.red},${color.green},${color.blue}`;
+  }
+
+  addSpecialColor(color, hitType) {
+    this.specialColors[this.#getColorKey(color)] = hitType;
   }
 }

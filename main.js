@@ -373,6 +373,14 @@ async function loadFilesAndStart(sceneSettings) {
   // Handle loading of any files ayncronously.
   // Instantiate the manager
   const voxelManager = new VoxelGeometryManager();
+  voxelManager.addSpecialColor({ red: 169, green: 31, blue: 31 }, 20);
+  voxelManager.addSpecialColor({ red: 140, green: 202, blue: 215 }, 20);
+  voxelManager.addSpecialColor({ red: 36, green: 153, blue: 29 }, 20);
+  voxelManager.addSpecialColor({ red: 208, green: 206, blue: 129 }, 20);
+  voxelManager.addSpecialColor({ red: 136, green: 152, blue: 141 }, 4);
+  voxelManager.addSpecialColor({ red: 255, green: 91, blue: 94 }, 20);
+  voxelManager.addSpecialColor({ red: 152, green: 210, blue: 94 }, 20);
+  voxelManager.addSpecialColor({ red: 255, green: 73, blue: 40 }, 20);
 
   // await voxelManager.addGeometry(
   //   "./models/teapot.vox",
