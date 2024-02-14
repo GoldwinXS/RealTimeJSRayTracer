@@ -3,15 +3,22 @@ precision highp int;
 precision highp sampler2D;
 precision highp sampler3D;
 
-uniform mat4 uTallBoxInvMatrix;
-uniform sampler2D tHDRTexture;
-uniform float uHDRI_Exposure;
+uniform float uBlurRatio;
 
 // Voxel related uniforms.
 uniform sampler3D voxelTexture;
 uniform int uNumberOfVoxelGeometries;
 uniform sampler2D uVoxelDataTexture;
 uniform float uVoxelDataTextureWidth;
+
+uniform sampler2D uVoxelLightTexture;
+uniform int uNumberOfVoxelLights;
+uniform float uVoxelLightTextureSize;
+
+vec3 emission = vec3(0);
+vec3 whiteLightColor = vec3(1.0, 1.0, 1.0) * 5.0;
+vec3 yellowLightColor = vec3(1.0, 0.8, 0.2) * 4.0;
+vec3 blueLightColor = vec3(0.1, 0.7, 1.0) * 2.0;
 
 struct VoxelGeometry {
 	mat4 voxelMeshInvMatrix;
@@ -50,22 +57,9 @@ VoxelGeometry getVoxelGeometry(int voxelIndex) {
 	return voxel;
 }
 
-// struct LightSource {
-// 	vec3 position;
-// 	float size;
-// };
-
-// LightSource getLightSources() {
-// 	vec4 temp = texture2D(uVoxelDataTexture, vec2((texelIndex + 1.0) / uVoxelDataTextureWidth, row));
-// 	vec3 position = temp.rgb;
-// 	float size = temp.a;
-// 	return LightSource(position, size);
-// }
-
 #include <pathtracing_uniforms_and_defines>
 const float epsilon = 0.0001;
 
-#define N_QUADS 1
 #define N_BOXES 4
 
 //-----------------------------------------------------------------------
@@ -74,19 +68,9 @@ vec3 rayOrigin, rayDirection;
 // recorded intersection data:
 vec3 hitNormal, hitEmission, hitColor, voxelCenter;
 vec2 hitUV;
-float hitObjectID, voxelSize;
+float hitObjectID, voxelSize, hitRoughness;
 int hitType = -100;
 
-struct Quad {
-	vec3 normal;
-	vec3 v0;
-	vec3 v1;
-	vec3 v2;
-	vec3 v3;
-	vec3 emission;
-	vec3 color;
-	int type;
-};
 struct Box {
 	vec3 minCorner;
 	vec3 maxCorner;
@@ -96,49 +80,54 @@ struct Box {
 };
 
 struct Sphere {
-	vec3 position;
 	float radius;
+	vec3 position;
+	vec3 emission;
+	vec3 color;
+	float roughness;
+	int type;
 };
 
-Quad quads[N_QUADS];
 Box boxes[N_BOXES];
 
 #include <pathtracing_random_functions>
 
 #include <pathtracing_calc_fresnel_reflectance>
 
-#include <pathtracing_quad_intersect>
-
 #include <pathtracing_box_intersect>
 
 #include <pathtracing_box_interior_intersect>
 
-#include <pathtracing_sample_quad_light>
+#include <pathtracing_sphere_intersect>
 
-#define STILL_WATER_LEVEL -100.0
-#define WATER_WAVE_AMP 20.0
-#define WATER_COLOR vec3(0.6, 1.0, 1.0)
+#include <pathtracing_sample_sphere_light>
 
-vec3 Get_HDR_Color(vec3 rDirection) {
-	vec2 sampleUV;
-	sampleUV.x = atan(rDirection.x, -rDirection.z) * 0.15915494309 + 0.5;
-	sampleUV.y = acos(rDirection.y) * 0.318309886183790672;
-	vec3 texColor = texture(tHDRTexture, sampleUV).rgb;
-	return texColor * uHDRI_Exposure;
+Box getLightData(int lightIndex) {
+	float N = float(uVoxelLightTextureSize);
+	// lightIndex = 0; // FOR TESTING
+	float index = float(lightIndex);
+	float x = mod(index, N);
+	float y = floor(index / N);
+
+    // Correctly normalize the coordinates
+	vec2 uv = vec2((x + 0.5) / N, (y + 0.5) / N);
+	vec4 encodedLightData = texture2D(uVoxelLightTexture, uv);
+
+	vec3 position = encodedLightData.rgb;
+	float size = encodedLightData.a; 
+
+    // Calculate the half size of the voxel cube to find min and max corners.
+	float halfSize = size * 0.4;
+	vec3 minCorner = position - vec3(halfSize);
+	vec3 maxCorner = position + vec3(halfSize);
+
+	return Box(minCorner, maxCorner, emission, yellowLightColor, LIGHT);
 }
 
-float getWaterWaveHeight(vec3 pos) {
-	float waveSpeed = uTime * 6.0;
-
-	float sampleAngle1 = mod(pos.x * 0.013 - waveSpeed * 0.7, TWO_PI);
-	float sampleAngle2 = mod(pos.z * 0.027 - waveSpeed * 0.4, TWO_PI);
-	float sampleAngle3 = mod(pos.x * 0.029 - waveSpeed * 0.5, TWO_PI);
-	float sampleAngle4 = mod(pos.z * 0.015 - waveSpeed * 0.6, TWO_PI);
-
-	float waveOffset = 0.25 * (sin(sampleAngle1) + sin(sampleAngle2) +
-		sin(sampleAngle3) + sin(sampleAngle4));
-
-	return STILL_WATER_LEVEL + (waveOffset * WATER_WAVE_AMP);
+Box getRandomLightData() {
+	int lightIndex = int(rand() * float(uNumberOfVoxelLights));
+	Box light = getLightData(lightIndex);
+	return light;
 }
 
 bool voxelInbounds(ivec3 cellIndex, ivec3 gridResolution) {
@@ -256,8 +245,35 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin, Box voxelBox, Voxe
 	return cellIndex;
 }
 
-//--------------------------------------------------------------------------------------------------------
-float SceneIntersect(int checkWater)
+vec3 sampleBoxLight(vec3 x, vec3 nl, Box light, out float weight) {
+    // Calculate the center of the box light
+	vec3 lightCenter = (light.minCorner + light.maxCorner) * 0.5;
+	vec3 dims = light.maxCorner - light.minCorner;
+
+    // Direction from the point being shaded to the center of the box
+	vec3 dirToLightCenter = lightCenter - x;
+	float distanceToLightCenter = length(dirToLightCenter);
+	dirToLightCenter = dirToLightCenter / distanceToLightCenter; // Normalize
+
+    // Randomly choose an offset within the box dimensions to simulate variability in emitted light directions
+	float offsetX = (rng() - 0.5) * dims.x;
+	float offsetY = (rng() - 0.5) * dims.y;
+	float offsetZ = (rng() - 0.5) * dims.z;
+	vec3 offset = vec3(offsetX, offsetY, offsetZ);
+
+    // Calculate a new light direction based on the random offset
+	vec3 dirToRandomPointOnLight = normalize((lightCenter + offset) - x);
+
+    // Weight calculation: Inverse square law for distance attenuation and Lambert's cosine law for angle of incidence
+    // Note: This is a simplification and may not accurately represent the true distribution of light from a box source.
+	float cosTheta = max(dot(nl, dirToRandomPointOnLight), 0.0);
+	weight = cosTheta / (distanceToLightCenter * distanceToLightCenter);
+	weight = clamp(weight, 0.0, 1.0); // Ensure weight is in [0, 1]
+
+	return dirToRandomPointOnLight;
+}
+
+float SceneIntersect()
 //--------------------------------------------------------------------------------------------------------
 {
 	vec3 rObjOrigin, rObjDirection;
@@ -266,62 +282,28 @@ float SceneIntersect(int checkWater)
 
 	float d = INFINITY;
 	float t = INFINITY;
-	float waterWaveDepth;
 
 	int objectCount = 0;
 
 	int isRayExiting = FALSE;
 
-	d = QuadIntersect(quads[0].v0, quads[0].v1, quads[0].v2, quads[0].v3, rayOrigin, rayDirection, FALSE);
-	if(d < t) {
-		t = d;
-		hitNormal = quads[0].normal;
-		hitEmission = quads[0].emission;
-		hitColor = quads[0].color;
-		hitType = quads[0].type;
-		hitObjectID = float(objectCount);
-	}
-	objectCount++;
-
-	d = BoxInteriorIntersect(boxes[2].minCorner, boxes[2].maxCorner, rayOrigin, rayDirection, n);
-	if(d < t && n != vec3(0, 0, -1)) {
-		t = d;
-		hitNormal = n;
-		hitEmission = boxes[2].emission;
-		hitColor = vec3(1);
-		hitType = DIFF;
-
-		if(n == vec3(1, 0, 0)) // left wall
-		{
-			hitColor = vec3(0.67, 0.26, 0.78);
-		} else if(n == vec3(-1, 0, 0)) // right wall
-		{
-			hitColor = vec3(0.2, 0.4, 0.36);
+	// Lights.
+	for(int i = 0; i < uNumberOfVoxelLights; i++) {
+		Box light = getLightData(i);
+		d = BoxIntersect(light.minCorner, light.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
+		if(d < t) {
+			t = d;
+			hitNormal = normal;
+			hitEmission = light.emission;
+			hitColor = light.color;
+			hitType = light.type;
+			hitObjectID = float(objectCount);
 		}
-
-		hitObjectID = float(objectCount);
+		objectCount++;
 	}
-	objectCount++;
 
-	// TALL MIRROR BOX
-	// transform ray into Tall Box's object space
-	rObjOrigin = vec3(uTallBoxInvMatrix * vec4(rayOrigin, 1.0));
-	rObjDirection = vec3(uTallBoxInvMatrix * vec4(rayDirection, 0.0));
-	d = BoxIntersect(boxes[0].minCorner, boxes[0].maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
-
-	if(d < t) {
-		t = d;
-		// transfom normal back into world space
-		hitNormal = transpose(mat3(uTallBoxInvMatrix)) * normal;
-		hitEmission = boxes[0].emission;
-		hitColor = boxes[0].color;
-		hitType = boxes[0].type;
-		hitObjectID = float(objectCount);
-	}
-	objectCount++;
-
-	// Voxels
-	// Transform the ray into the coordinateg space of the box containing the voxels 
+	// Voxels.
+	// Transform the ray into the coordinateg space of the box containing the voxels.
 	for(int voxelIndex = 0; voxelIndex < uNumberOfVoxelGeometries; voxelIndex++) {
 		VoxelGeometry voxelGeometry = getVoxelGeometry(voxelIndex);
 		Box voxelBox = Box(vec3(-voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(0), vec3(1), DIFF);
@@ -340,9 +322,9 @@ float SceneIntersect(int checkWater)
 			// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
 			if(voxelCoords != ivec3(-1)) {
 
-			// Back off the ray origin so that we don't mistakenly put it inside a voxel 
+				// Back off the ray origin so that we don't mistakenly put it inside a voxel 
 				rObjOrigin -= rObjDirection;
-			// Scale voxel coordinate space to voxel model space 
+				// Scale voxel coordinate space to voxel model space 
 				vec3 voxelPosition = vec3(voxelCoords) * ((voxelBox.maxCorner - voxelBox.minCorner)) / voxelGeometry.gridDimensions;
 
 				// Transform the voxel position by min corner, that is the voxel's min corner
@@ -363,13 +345,10 @@ float SceneIntersect(int checkWater)
 				t = d;
 				hitColor = voxelHitColor.rgb;
 				hitType = int(voxelHitColor.a * 255.0);
-				hitEmission = vec3(0.0);
+				hitEmission = hitColor;
 
-				if(voxelHitColor.a * 255.0 == 20.0) {
-					hitType = int(voxelHitColor.a * 255.0);
-					hitEmission = hitColor;
-					voxelCenter = (voxelBox.minCorner + voxelBox.maxCorner) / 2.0;
-					voxelSize = voxelGeometry.voxelSize;
+				if(hitType == 20) {
+					hitType = LIGHT;
 				}
 				hitNormal = transpose(mat3(voxelGeometry.voxelMeshInvMatrix)) * normal;
 				hitObjectID = float(objectCount);
@@ -379,99 +358,43 @@ float SceneIntersect(int checkWater)
 		objectCount++;
 	}
 
-	// color surfaces beneath the water
-	vec3 underwaterHitPos = rayOrigin + rayDirection * t;
-	float testPosWaveHeight = getWaterWaveHeight(underwaterHitPos);
-	if(underwaterHitPos.y < testPosWaveHeight) {
-		hitColor *= WATER_COLOR;
-	}
-
-	if(checkWater == FALSE) {
-		return t;
-	}
-
-	///////////////////////////////////////////////////////////////////////////////////////////////////////
-	// WATER VOLUME 
-	///////////////////////////////////////////////////////////////////////////////////////////////////////
-
-	vec3 pos = rayOrigin;
-	vec3 dir = rayDirection;
-	float h = 0.0;
-	d = 0.0; // reset d
-
-	for(int i = 0; i < 150; i++) {
-		h = abs(pos.y - getWaterWaveHeight(pos));
-		if(d > 10000.0 || h < 1.0)
-			break;
-		d += h * 0.5;
-		pos += dir * h * 0.5;
-	}
-	if(h > WATER_WAVE_AMP)
-		return t;
-
-	if(d < t && pos.z < 0.0 && pos.z > -boxes[2].minCorner.z && pos.x > 0.0 && pos.x < boxes[2].minCorner.x) {
-		float eps = 1.0;
-		t = d;
-		hitWorldSpace = pos;
-		float dx = getWaterWaveHeight(hitWorldSpace - vec3(eps, 0, 0)) - getWaterWaveHeight(hitWorldSpace + vec3(eps, 0, 0));
-		float dy = eps * 2.0; // (the water wave height is a function of x and z, not dependent on y)
-		float dz = getWaterWaveHeight(hitWorldSpace - vec3(0, 0, eps)) - getWaterWaveHeight(hitWorldSpace + vec3(0, 0, eps));
-
-		hitNormal = vec3(dx, dy, dz);
-		hitEmission = vec3(0);
-		hitColor = WATER_COLOR;
-		hitType = REFR;
-	}
-
 	return t;
 }
 
-vec3 sampleVoxelLight(vec3 x, vec3 nl, vec3 voxelCenter, float voxelSize, out float weight) {
-    // Jitter the light position within the voxel to simulate a small area light
-    // This is optional and can be adjusted or omitted based on desired accuracy
-	vec3 jitter = vec3(rng() - 0.5, rng() - 0.5, rng() - 0.5) * voxelSize;
-	vec3 lightPosition = voxelCenter + jitter;
+vec3 Get_Star_Field_Color(vec3 rDirection) {
+	vec3 baseColor = vec3(0.0); // Dark sky background color
+	float starThreshold = 0.999; // Threshold to reduce the number of stars
+	float scale = 1.0; // Adjust scale to control the density of stars
 
-    // Calculate direction to light
-	vec3 dirToLight = lightPosition - x;
-	float distanceSquared = dot(dirToLight, dirToLight);
-	dirToLight = normalize(dirToLight);
+    // Normalize rDirection to ensure it's a unit vector
+	rDirection = normalize(rDirection);
 
-    // Calculate the solid angle subtended by the voxel. For simplicity, assume it's a point light
-    // Thus, we don't calculate cos_a_max as we did for the quad. Instead, we use a simpler attenuation model
-	float attenuation = 1.0 / distanceSquared;
+    // Convert rDirection from Cartesian to spherical coordinates (longitude and latitude)
+	float longitude = atan(rDirection.z, rDirection.x) / PI;
+	float latitude = asin(rDirection.y) / PI; // Use asin for latitude to spread stars more evenly
 
-    // Calculate the dot product of the normal and the light direction
-	float dotNlRayDir = max(0.0, dot(nl, dirToLight));
+    // Apply a scaling factor to adjust the star distribution
+	vec2 scaledCoords = vec2(longitude, latitude) * scale;
 
-    // Weight by the attenuation and the angle between the light direction and the normal
-    // Adjust the weight calculation as needed for your specific lighting model
-	weight = attenuation * dotNlRayDir;
-	weight = clamp(weight, 0.0, 1.0);
+    // Sample the blue noise texture with the adjusted spherical coordinates
+	vec3 noiseValue = texture2D(tBlueNoiseTexture, fract(scaledCoords)).rgb;
 
-	return dirToLight;
+    // Determine if the current pixel should display a star based on the noise value
+	if(noiseValue.r > starThreshold) {
+		float brightness = fract(noiseValue.g * 20.0) * 0.5 + 0.5; // Modulate star brightness
+		vec3 starColor = vec3(1.0); // White stars for simplicity, adjust for color variations
+
+        // Add the star's brightness and color to the base sky color
+		return baseColor + starColor * brightness;
+	}
+
+    // Return the base sky color where there are no stars
+	return baseColor;
 }
 
-// if(hitType == LIGHT) { // Assuming this is a light-emitting voxel
-// vec3 lightPosition = voxelPosition + voxelSize * 0.5; // Center of the voxel
-// vec3 toLight = lightPosition - x; // x is the intersection point
-// float distanceSquared = dot(toLight, toLight);
-// vec3 lightDir = normalize(toLight);
-// float attenuation = 1.0 / (1.0 + distanceSquared); // Simple distance-based attenuation
-
-//     // Calculate the contribution of this light source
-// float NdotL = max(dot(nl, lightDir), 0.0); // nl is the surface normal at hit point
-// vec3 lightContribution = hitEmission * NdotL * attenuation;
-
-// accumCol += mask * lightContribution; // Add the light contribution to the accumulated color
-// }
-
-//-----------------------------------------------------------------------------------------------------------------------------
 vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float objectID, out float pixelSharpness)
 //-----------------------------------------------------------------------------------------------------------------------------
 {
-	Quad light = quads[0];
-
 	vec3 accumCol = vec3(0);
 	vec3 mask = vec3(1);
 	vec3 reflectionMask = vec3(1);
@@ -485,7 +408,9 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 	float nc, nt, ratioIoR, Re, Tr;
 	//float P, RP, TP;
 	float weight;
-	float thickness = 0.01; // 0.02
+	float thickness = 0.05; // 0.02
+	float firstIntersectionRoughness = 0.0;
+
 	float hitObjectID;
 	bool voxelLight = false;
 
@@ -496,21 +421,24 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 	int coatTypeIntersected = FALSE;
 	int bounceIsSpecular = TRUE;
 	int sampleLight = FALSE;
-	int checkWater = TRUE;
-	int rayEnteredWater = FALSE;
 	int willNeedReflectionRay = FALSE;
+
+	Box testLight = getRandomLightData();
+
+	float r = (testLight.maxCorner - testLight.minCorner).x; // Take one component since it is a cube
+	vec3 p = vec3((testLight.maxCorner + testLight.minCorner) / 2.0);
+	Sphere testLightSphere = Sphere(r, p, emission, yellowLightColor, 0.0, LIGHT);
 
 	for(int bounces = 0; bounces < 6; bounces++) {
 		previousIntersecType = hitType;
 
-		t = SceneIntersect(checkWater);
-		checkWater = FALSE;
+		t = SceneIntersect();
 
 		if(t == INFINITY) {
 
 			if(bounces == 0) {
 				pixelSharpness = 1.01;
-				vec3 environmentCol = Get_HDR_Color(rayDirection);
+				vec3 environmentCol = Get_Star_Field_Color(rayDirection);
 
 				accumCol += environmentCol;
 				break;
@@ -537,32 +465,17 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 		x = rayOrigin + rayDirection * t;
 
 		if(bounces == 0) {
+			firstIntersectionRoughness = hitRoughness;
 			objectNormal = nl;
 			objectColor = hitColor;
 			objectID = hitObjectID;
 		}
 
-		if(bounces == 1 && previousIntersecType == SPEC) {
-			objectNormal = nl;
-		}
+		if(hitType == LIGHT || hitType == 19) {
+			pixelSharpness = diffuseCount == 0 && firstIntersectionRoughness < 0.1 ? 1.01 : 0.0;
 
-		if(hitType == LIGHT || hitType == 20) {
-			if(bounces == 0 || (bounces == 1 && previousIntersecType == SPEC))
-				pixelSharpness = 1.01;
-
-			if(diffuseCount == 0) {
-				objectNormal = nl;
-				objectColor = hitColor;
-				objectID = hitObjectID;
-			}
-
-			if(sampleLight == TRUE || bounceIsSpecular == TRUE)
+			if(bounceIsSpecular == TRUE || sampleLight == TRUE || hitType == 19)
 				accumCol += mask * hitEmission;
-
-			if(hitType == 20) {
-				accumCol += mask * hitEmission;
-				sampleLight = TRUE;
-			}
 
 			if(willNeedReflectionRay == TRUE) {
 				mask = reflectionMask;
@@ -575,12 +488,12 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 				diffuseCount = 0;
 				continue;
 			}
+
 			// reached a light, so we can exit
 			break;
+
 		}
 
-		// if we get here and sampleLight is still TRUE, shadow ray failed to find the light source 
-		// the ray hit an occluding object along its way to the light
 		if(sampleLight == TRUE) {
 			if(willNeedReflectionRay == TRUE) {
 				mask = reflectionMask;
@@ -599,13 +512,7 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 
 		if(hitType == DIFF) // Ideal DIFFUSE reflection
 		{
-
-			if(rayEnteredWater == FALSE)
-				mask *= hitColor;
-			else {
-				rayEnteredWater = FALSE;
-				mask *= exp(log(WATER_COLOR) * thickness * t);
-			}
+			mask *= hitColor;
 
 			diffuseCount++;
 
@@ -618,10 +525,10 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 				rayOrigin = x + nl * uEPS_intersect;
 				continue;
 			}
-			//dirToLight = sampleVoxelLight(x, nl, voxelCenter, voxelSize, weight);
-			dirToLight = sampleQuadLight(x, nl, quads[0], weight);
+			dirToLight = sampleSphereLight(x, nl, testLightSphere, weight);
+			// dirToLight = sampleBoxLight(x, nl, testLight, weight);
 			mask /= diffuseCount == 1 ? 0.6 : 1.0;
-			mask *= weight;
+			mask *= weight * float(uNumberOfVoxelLights);
 
 			rayDirection = dirToLight;
 			rayOrigin = x + nl * uEPS_intersect;
@@ -633,18 +540,36 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 
 		if(hitType == SPEC)  // Ideal SPECULAR reflection
 		{
-			if(rayEnteredWater == FALSE)
-				mask *= hitColor;
-			else {
-				mask *= exp(log(WATER_COLOR) * thickness * t);
+			mask *= hitColor;
+			mask *= 1.25;
+
+			if(diffuseCount == 0 && rand() >= hitRoughness) {
+				rayDirection = reflect(rayDirection, nl); // reflect ray from metal surface
+				rayDirection = randomDirectionInSpecularLobe(rayDirection, hitRoughness * 0.9);
+				rayOrigin = x + nl * uEPS_intersect;
+				continue;
 			}
 
-			rayDirection = reflect(rayDirection, nl);
+			diffuseCount++;
+
+			bounceIsSpecular = FALSE;
+
+			if(diffuseCount == 1 && rand() < 0.5) {
+				mask *= 2.0;
+				// choose random Diffuse sample vector
+				rayDirection = randomCosWeightedDirectionInHemisphere(nl);
+				rayOrigin = x + nl * uEPS_intersect;
+				continue;
+			}
+			dirToLight = sampleSphereLight(x, nl, testLightSphere, weight);
+			// dirToLight = sampleBoxLight(x, nl, testLight, weight);
+			mask *= diffuseCount == 1 ? 2.0 : 1.0;
+			mask *= weight;// * float(uNumberOfVoxelLights);
+
+			rayDirection = dirToLight;
 			rayOrigin = x + nl * uEPS_intersect;
 
-			if(bounces == 0)
-				checkWater = TRUE;
-
+			sampleLight = TRUE;
 			continue;
 		}
 
@@ -675,16 +600,6 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 				continue;
 			}
 
-			// transmit ray through surface	
-			rayEnteredWater = TRUE;
-
-			// is ray leaving a solid object from the inside? 
-			// If so, attenuate ray color with object color by how far ray has travelled through the medium
-			if(distance(n, nl) > 0.1) {
-				rayEnteredWater = FALSE;
-				mask *= exp(log(WATER_COLOR) * thickness * t);
-			}
-
 			mask *= Tr;
 
 			tdir = refract(rayDirection, nl, ratioIoR);
@@ -693,41 +608,11 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 
 			continue;
 
-		} // end if (hitType == REFR)
+		}
 
-	} // end for (int bounces = 0; bounces < 5; bounces++)
-
-	return max(vec3(0), accumCol); // prevents black spot artifacts appearing in the water 
-
+	}
+	return max(vec3(0), accumCol);
 }
-
-//-----------------------------------------------------------------------
-void SetupScene(void)
-//-----------------------------------------------------------------------
-{
-	vec3 z = vec3(0);// No color value, Black        
-	vec3 L1 = vec3(1.0, 0.7, 0.38) * 15.0;// Bright Yellowish light
-		    // 0.736507, 0.642866, 0.210431  Original values
-
-	boxes[0] = Box(vec3(-82.0, -170.0, -80.0), vec3(82.0, 170.0, 80.0), z, vec3(1), SPEC);// Tall Mirror Box Left
-	boxes[1] = Box(vec3(-86.0, -85.0, -80.0), vec3(86.0, 85.0, 80.0), z, vec3(0.2, 0.8, 0.2), DIFF);// Short Diffuse Box Right
-	boxes[2] = Box(vec3(-1000, 0, -1000), vec3(1000, 2000, 1000), z, vec3(1), DIFF);
-
-// Centered area light (Quad) in the ceiling of the box
-	float lightSideLength = 1000.0; // Size of the light
-	float ceilingY = 2000.0; // Y coordinate of the ceiling
-	float halfBoxSize = 1000.0; // Half the size of the box
-	float halfLightSize = lightSideLength * 0.5;
-
-// Coordinates for the light
-	vec3 v0 = vec3(-halfLightSize, ceilingY, -halfLightSize);
-	vec3 v1 = vec3(halfLightSize, ceilingY, -halfLightSize);
-	vec3 v2 = vec3(halfLightSize, ceilingY, halfLightSize);
-	vec3 v3 = vec3(-halfLightSize, ceilingY, halfLightSize);
-
-	quads[0] = Quad(vec3(0.0, -1.0, 0.0), v0, v1, v2, v3, L1, z, LIGHT);
-
-}	
 
 // tentFilter from Peter Shirley's 'Realistic Ray Tracing (2nd Edition)' book, pg. 60		
 float tentFilter(float x) {
@@ -735,7 +620,7 @@ float tentFilter(float x) {
 }
 
 void main(void) {
-        // not needed, three.js has a built-in uniform named cameraPosition
+    // not needed, three.js has a built-in uniform named cameraPosition
         //vec3 camPos   = vec3( uCameraMatrix[3][0],  uCameraMatrix[3][1],  uCameraMatrix[3][2]);
 
 	vec3 camRight = vec3(uCameraMatrix[0][0], uCameraMatrix[0][1], uCameraMatrix[0][2]);
@@ -770,9 +655,7 @@ void main(void) {
 	rayOrigin = uUseOrthographicCamera ? cameraPosition + (camRight * pixelPos.x * uULen * 100.0) + (camUp * pixelPos.y * uVLen * 100.0) + randomAperturePos : cameraPosition + randomAperturePos;
 	rayDirection = finalRayDir;
 
-	SetupScene(); 
-
-        // Edge Detection - don't want to blur edges where either surface normals change abruptly (i.e. room wall corners), objects overlap each other (i.e. edge of a foreground sphere in front of another sphere right behind it),
+    // Edge Detection - don't want to blur edges where either surface normals change abruptly (i.e. room wall corners), objects overlap each other (i.e. edge of a foreground sphere in front of another sphere right behind it),
 	// or an abrupt color variation on the same smooth surface, even if it has similar surface normals (i.e. checkerboard pattern). Want to keep all of these cases as sharp as possible - no blur filter will be applied.
 	vec3 objectNormal, objectColor;
 	float objectID = -INFINITY;
@@ -806,7 +689,7 @@ void main(void) {
 
 	if(uCameraIsMoving) // camera is currently moving
 	{
-		previousPixel.rgb *= 0.6; // motion-blur trail amount (old image)
+		previousPixel.rgb *= uBlurRatio; // motion-blur trail amount (old image)
 		currentPixel.rgb *= 0.4; // brightness of new image (noisy)
 
 		previousPixel.a = 0.0;
@@ -833,7 +716,7 @@ void main(void) {
 		currentPixel.a = 1.01;
 
 	// for dynamic scenes (to clear out old, dark, sharp pixel trails left behind from moving objects)
-	if(previousPixel.a == 1.01 && rng() < 0.05)
+	if(previousPixel.a == 1.01 && rng() < 0.5)
 		currentPixel.a = 1.0;
 
 	pc_fragColor = vec4(previousPixel.rgb + currentPixel.rgb, currentPixel.a);

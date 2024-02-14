@@ -21,7 +21,7 @@ export class SpawnObjectManager {
           element.position.y,
           element.position.z
         ),
-        5
+        element.size
       );
       // For now we're just going to "cheat" and set the rotation so that most models will look right side up
       voxelManager.setGeomRotation(

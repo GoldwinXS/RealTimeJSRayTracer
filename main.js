@@ -20,24 +20,7 @@ import {
   uiStatePropertyNames,
 } from "./js/uiState";
 import { RGBELoader } from "./js/RGBELoader";
-
-function createConfiguredMesh(
-  settings,
-  geometryParams,
-  materialParams,
-  transformationParams
-) {
-  const geometry = new THREE.BoxGeometry(...geometryParams);
-  const material = new THREE.MeshPhysicalMaterial(materialParams);
-  const mesh = new THREE.Mesh(geometry, material);
-
-  mesh.visible = transformationParams.visible;
-  mesh.rotation.set(...transformationParams.rotation);
-  mesh.position.set(...transformationParams.position);
-  mesh.updateMatrixWorld(transformationParams.updateMatrixWorld);
-
-  settings.mesh = mesh;
-}
+import { GameManager } from "./js/game/GameManager";
 
 function initSceneData(sceneSettings) {
   // Initialize Renderer and Context
@@ -66,58 +49,18 @@ function initSceneData(sceneSettings) {
   }); // Green color
 
   // Set or change any needed scene data
-  sceneSettings.sceneIsDynamic = true;
+  // sceneSettings.sceneIsDynamic = true;
   sceneSettings.pixelRatio = 2;
   sceneSettings.EPS_intersect = 0.01;
 
-  createConfiguredMesh(
-    sceneSettings.tallBox,
-    [1, 1, 1],
-    {
-      color: new THREE.Color(0.95, 0.95, 0.95),
-      roughness: 1.0,
-    },
-    {
-      visible: false,
-      rotation: [0, Math.PI * 0.1, 0],
-      position: [385, 170, -800],
-      updateMatrixWorld: true,
-    }
-  );
-
-  createConfiguredMesh(
-    sceneSettings.shortBox,
-    [1, 1, 1],
-    {
-      color: new THREE.Color(0.55, 0.95, 0.55),
-      roughness: 1.0,
-    },
-    {
-      visible: false,
-      rotation: [0, -Math.PI * 0.09, 0],
-      position: [800, 85, -570],
-      updateMatrixWorld: true,
-    }
-  );
-
   // Add meshes.
-  sceneSettings.pathTracing.scene.add(sceneSettings.shortBox.mesh);
-  sceneSettings.pathTracing.scene.add(sceneSettings.tallBox.mesh);
   let hdrLoader = new RGBELoader();
   hdrLoader.type = THREE.FloatType; // override THREE's default of HalfFloatType
 
-  let hdrTexture = hdrLoader.load("textures/daytime.hdr", function (texture) {
-    return texture;
-  });
   sceneSettings.controls = setupControls(sceneSettings);
   sceneSettings.controls.addEventListeners(sceneSettings);
   // scene/demo-specific uniforms go here
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
-  pathTracingUniforms.tHDRTexture = { value: hdrTexture };
-
-  pathTracingUniforms.uShortBoxInvMatrix = { value: new THREE.Matrix4() };
-  pathTracingUniforms.uTallBoxInvMatrix = { value: new THREE.Matrix4() };
-  pathTracingUniforms.uTallBoxInvMatrix2 = { value: new THREE.Matrix4() };
   pathTracingUniforms.uVoxelMeshInvMatrix = { value: new THREE.Matrix4() };
   pathTracingUniforms.voxelTexture = {
     value: sceneSettings.voxels.voxelManager.voxelTexture,
@@ -130,6 +73,16 @@ function initSceneData(sceneSettings) {
   };
   pathTracingUniforms.uVoxelDataTextureWidth = {
     value: sceneSettings.voxels.voxelManager.textureWidth,
+  };
+
+  pathTracingUniforms.uVoxelLightTexture = {
+    value: sceneSettings.voxels.voxelManager.lightTexture,
+  };
+  pathTracingUniforms.uNumberOfVoxelLights = {
+    value: sceneSettings.voxels.voxelManager.totalLights,
+  };
+  pathTracingUniforms.uVoxelLightTextureSize = {
+    value: sceneSettings.voxels.voxelManager.lightTextureSize,
   };
 }
 
@@ -241,10 +194,6 @@ function animate() {
   );
 
   // Update scene specific uniforms
-  sceneSettings.pathTracing.uniforms.uTallBoxInvMatrix.value
-    .copy(sceneSettings.tallBox.mesh.matrixWorld)
-    .invert();
-
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
 
   pathTracingUniforms.voxelTexture = {
@@ -258,6 +207,16 @@ function animate() {
   };
   pathTracingUniforms.uVoxelDataTextureWidth = {
     value: sceneSettings.voxels.voxelManager.textureWidth,
+  };
+
+  pathTracingUniforms.uVoxelLightTexture = {
+    value: sceneSettings.voxels.voxelManager.lightTexture,
+  };
+  pathTracingUniforms.uNumberOfVoxelLights = {
+    value: sceneSettings.voxels.voxelManager.totalLights,
+  };
+  pathTracingUniforms.uVoxelLightTextureSize = {
+    value: sceneSettings.voxels.voxelManager.lightTextureSize,
   };
   // sceneSettings.voxels.voxelManager.updateShaderData();
 
@@ -373,25 +332,44 @@ async function loadFilesAndStart(sceneSettings) {
   // Handle loading of any files ayncronously.
   // Instantiate the manager
   const voxelManager = new VoxelGeometryManager();
-  voxelManager.addSpecialColor({ red: 169, green: 31, blue: 31 }, 20);
-  voxelManager.addSpecialColor({ red: 140, green: 202, blue: 215 }, 20);
-  voxelManager.addSpecialColor({ red: 36, green: 153, blue: 29 }, 20);
+
+  // Lights
   voxelManager.addSpecialColor({ red: 208, green: 206, blue: 129 }, 20);
-  voxelManager.addSpecialColor({ red: 136, green: 152, blue: 141 }, 4);
-  voxelManager.addSpecialColor({ red: 255, green: 91, blue: 94 }, 20);
-  voxelManager.addSpecialColor({ red: 152, green: 210, blue: 94 }, 20);
-  voxelManager.addSpecialColor({ red: 255, green: 73, blue: 40 }, 20);
+  voxelManager.addSpecialColor({ red: 255, green: 33, blue: 0 }, 20);
+  voxelManager.addSpecialColor({ red: 0, green: 255, blue: 203 }, 20);
+
+  // // Metals
+  // voxelManager.addSpecialColor({ red: 87, green: 87, blue: 87 }, 3);
+
+  // voxelManager.addSpecialColor({ red: 208, green: 204, blue: 115 }, 19);
+
+  // Lights
+  voxelManager.addSpecialColor({ red: 208, green: 204, blue: 115 }, 19);
+
+  // Untracked Lights
+  voxelManager.addSpecialColor({ red: 225, green: 101, blue: 101 }, 19);
+  voxelManager.addSpecialColor({ red: 148, green: 207, blue: 210 }, 19);
+
+  // Metals
+  voxelManager.addSpecialColor({ red: 109, green: 109, blue: 109 }, 3);
+
+  // Glass
+  voxelManager.addSpecialColor({ red: 41, green: 75, blue: 55 }, 3);
 
   // await voxelManager.addGeometry(
   //   "./models/teapot.vox",
   //   new THREE.Vector3(300, 10, -320),
   //   5
   // );
-
   // voxelManager.setGeomRotation(0, "x", -90);
   // // voxelManager.setGeomRotation(0, "y", -90);
   // voxelManager.setGeomPosition(0, [300, 200, -300]);
   // Set up scene settings with the first geometry
+  sceneSettings.gameManager = new GameManager(
+    voxelManager,
+    sceneSettings.worldCamera
+  );
+  sceneSettings.gameManager.startGame();
   sceneSettings.voxels.voxelGeometry = voxelManager.voxelGeometries[0];
   sceneSettings.voxels.voxelManager = voxelManager;
 

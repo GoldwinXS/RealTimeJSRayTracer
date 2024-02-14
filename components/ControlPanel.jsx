@@ -11,8 +11,9 @@ import { TextField, Button } from "@mui/material";
 const ControlPanel = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [filePath, setFilePath] = useState("");
-  const [position, setPosition] = useState({ x: 0, y: 0, z: 0 });
+  const [filePath, setFilePath] = useState("models/MicroRecon.vox");
+  const [position, setPosition] = useState({ x: 0, y: 10, z: 0 });
+  const [size, setSize] = useState(1);
   const [spawnObjectManager, setSpawnObjectManager] = useState();
 
   const toggleDrawer = () => {
@@ -37,6 +38,14 @@ const ControlPanel = () => {
           min={0.1}
           max={3}
           step={0.1}
+        />
+
+        <SliderControl
+          label="Blur Ratio"
+          sceneSettingsProperty="blurRatio"
+          min={0.1}
+          max={1}
+          step={0.6}
         />
 
         <div>
@@ -69,11 +78,18 @@ const ControlPanel = () => {
               setPosition({ ...position, z: parseFloat(e.target.value) })
             }
           />
+          <TextField
+            label="Voxel Size"
+            type="number"
+            value={size}
+            onChange={(e) => setSize(e.target.value)}
+          />
           <Button
             onClick={() => {
               spawnObjectManager.sendCommand({
                 filePath: filePath,
                 position: position,
+                size: size,
               });
             }}
           >

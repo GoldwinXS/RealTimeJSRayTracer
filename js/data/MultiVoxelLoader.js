@@ -31,11 +31,16 @@ import { VoxelGeometry, calculateIndex } from "./VoxelGeometry";
  * @method #prepareShaderData - Gathers data from each VoxelGeometry for shader use.
  */
 export class VoxelGeometryManager {
-  maxTextureDimensions = new THREE.Vector3(512, 512, 512); // Example size
+  // TODO: Calculate max size from user device.
+  maxTextureDimensions = new THREE.Vector3(512, 512, 512);
   voxelGeometries = {};
   voxelData = [];
+  lights = {};
+  totalLights = 0;
   specialColors = {};
   voxelTexture;
+  lightTexture;
+  lightTextureSize;
   currentVoxelIndex = 0;
   totalVoxelGeometries = 0;
   textureWidth;
@@ -67,16 +72,12 @@ export class VoxelGeometryManager {
 
   setGeomPosition(id, position) {
     this.voxelGeometries[id].setPosition(...position);
-    this.updateShaderData();
+    this.#updateShaderTextureData();
   }
 
   setGeomRotation(id, axis, degrees) {
     this.voxelGeometries[id].setRotation(axis, degrees);
-    this.updateShaderData();
-  }
-
-  updateShaderData() {
-    this.updateShaderTextureData();
+    this.#updateShaderTextureData();
   }
 
   /**
@@ -92,15 +93,19 @@ export class VoxelGeometryManager {
       atlasData,
       this.maxTextureDimensions
     );
-    this.updateShaderData();
+    this.#updateShaderTextureData();
   }
 
-  updateShaderTextureData() {
+  #updateShaderTextureData() {
     const { dataTexture, textureWidth } = this.#prepareShaderData(
       this.voxelGeometries
     );
     this.shaderData = dataTexture;
     this.textureWidth = textureWidth;
+    const { lightTexture, lightTextureSize } =
+      this.#encodeLightsIntoDataTexture();
+    this.lightTexture = lightTexture;
+    this.lightTextureSize = lightTextureSize;
   }
 
   /**
@@ -174,6 +179,8 @@ export class VoxelGeometryManager {
    * @returns {Uint8Array} - Data needed to create the 3D texture.
    */
   #compileTextureAtlas(packedGeometries) {
+    this.lights = {};
+    this.totalLights = 0;
     const geometriesArray = Object.values(packedGeometries);
     const totalSize =
       this.maxTextureDimensions.x *
@@ -182,9 +189,7 @@ export class VoxelGeometryManager {
     const atlasData = new Uint8Array(totalSize * 4); // 4 for RGBA
 
     geometriesArray.forEach((geometry) => {
-      // Assume geometry.voxelData is already loaded and processed
       const size = geometry.gridDimensions;
-
       for (let z = 0; z < size.z; z++) {
         for (let y = 0; y < size.y; y++) {
           for (let x = 0; x < size.x; x++) {
@@ -209,17 +214,26 @@ export class VoxelGeometryManager {
             atlasData[atlasIndex + 1] = green;
             atlasData[atlasIndex + 2] = blue;
             atlasData[atlasIndex + 3] = alpha > 0 ? 1 : 0;
-            const colorKey = this.#getColorKey({
-              red: red,
-              green: green,
-              blue: blue,
-            });
+            const color = { red, green, blue };
+
+            const colorKey = this.#getColorKey(color);
             if (
               this.specialColors &&
               this.specialColors[colorKey] &&
               alpha != 0
             ) {
+              // Encode the special color int othe alpha channel.
               atlasData[atlasIndex + 3] = this.specialColors[colorKey];
+              // If we encounter a light, add it to lights to keep track of them for importance sampling.
+              if (this.specialColors[colorKey] == 20) {
+                // Calculate the local position of the light relative to the model.
+                const localPosition = new THREE.Vector3(
+                  geometry.position.x - x,
+                  geometry.position.y - y,
+                  geometry.position.z - z
+                );
+                this.#handleLight(localPosition, color, geometry);
+              }
             }
           }
         }
@@ -227,6 +241,17 @@ export class VoxelGeometryManager {
     });
 
     return atlasData;
+  }
+
+  #handleLight(localPosition, color, geometry) {
+    // Use the transformed position for the light
+    this.lights[this.#getPositionKey(localPosition)] = {
+      red: color.red,
+      green: color.green,
+      blue: color.blue,
+      voxelSize: geometry.voxelSize,
+    };
+    this.totalLights++;
   }
 
   /**
@@ -286,6 +311,45 @@ export class VoxelGeometryManager {
     dataTexture.needsUpdate = true;
 
     return { dataTexture, textureWidth };
+  }
+
+  #encodeLightsIntoDataTexture() {
+    const lightTextureSize = Math.ceil(Math.sqrt(this.totalLights)); // Ensure the texture can hold all lights
+    const lightData = new Float32Array(lightTextureSize * lightTextureSize * 4); // 4 for RGBA
+
+    let i = 0;
+    for (const key in this.lights) {
+      const position = key.split(",").map(Number);
+      lightData[i++] = position[0];
+      lightData[i++] = position[1];
+      lightData[i++] = position[2];
+      lightData[i++] = Number(this.lights[key].voxelSize);
+      console.log(
+        `added light data ${position}, with size ${this.lights[key].voxelSize}`
+      );
+    }
+    console.log(
+      `finished adding lights, total lights added: ${
+        Object.values(this.lights).length
+      }, texture size ${lightTextureSize}`
+    );
+
+    // Create the data texture
+    const lightTexture = new THREE.DataTexture(
+      lightData,
+      lightTextureSize,
+      lightTextureSize,
+      THREE.RGBAFormat,
+      THREE.FloatType
+    );
+    lightTexture.needsUpdate = true;
+
+    // Return the light texture
+    return { lightTexture, lightTextureSize };
+  }
+
+  #getPositionKey(position) {
+    return `${position.x},${position.y},${position.z}`;
   }
 
   #getColorKey(color) {
