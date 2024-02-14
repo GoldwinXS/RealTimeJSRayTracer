@@ -37,30 +37,30 @@ export class GameManager {
     this.voxelManager.setGeomRotation(playerId, "x", 90);
 
     // Add another ship.
-    await this.voxelManager.addGeometry(
-      this.starshipFile,
-      this.originPosition.add(this.shortDistance).multiplyScalar(4),
-      10
-    );
-    this.voxelManager.setGeomRotation(1, "x", 90);
+    // await this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   this.originPosition.add(this.shortDistance).multiplyScalar(4),
+    //   10
+    // );
+    // this.voxelManager.setGeomRotation(1, "x", 90);
 
     // Add a lights
     await this.voxelManager.addGeometry(this.sunFile, this.shortDistance, 100);
-    await this.voxelManager.addGeometry(
-      this.sunFile,
-      this.shortDistance.multiplyScalar(-1),
-      100
-    );
-    await this.voxelManager.addGeometry(
-      this.sunFile,
-      this.distanceUp.multiplyScalar(20),
-      10
-    );
-    await this.voxelManager.addGeometry(
-      this.sunFile,
-      this.distanceUp.multiplyScalar(-20),
-      10
-    );
+    // await this.voxelManager.addGeometry(
+    //   this.sunFile,
+    //   this.shortDistance.multiplyScalar(-1),
+    //   100
+    // );
+    // await this.voxelManager.addGeometry(
+    //   this.sunFile,
+    //   this.distanceUp.multiplyScalar(20),
+    //   10
+    // );
+    // await this.voxelManager.addGeometry(
+    //   this.sunFile,
+    //   this.distanceUp.multiplyScalar(-20),
+    //   10
+    // );
 
     return this.voxelManager.voxelGeometries[0];
   }

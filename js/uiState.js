@@ -5,6 +5,7 @@ export const uiStatePropertyNames = [
   "pixelRatio",
   "spawnObjectManager",
   "blurRatio",
+  "isPaused",
 ];
 
 export function exportToWindow(sourceObject, propertyNames) {

@@ -87,7 +87,7 @@ export var FirstPersonCameraControls = function (camera) {
   var movementY = 0;
 
   var onMouseMove = function (event) {
-    if (this.isPaused || window?.isUIActive) return;
+    if (window?.isPaused || window?.isUIActive) return;
     movementX = event.movementX || event.mozMovementX || 0;
     movementY = event.movementY || event.mozMovementY || 0;
 
@@ -98,6 +98,14 @@ export var FirstPersonCameraControls = function (camera) {
       -PI_2,
       Math.min(PI_2, pitchObject.rotation.x)
     );
+  };
+
+  this.enablePointerLock = function () {
+    document.body.requestPointerLock =
+      document.body.requestPointerLock ||
+      document.mozRequestPointerLock ||
+      document.webkitRequestPointerLock;
+    document.body.requestPointerLock();
   };
 
   document.addEventListener("mousemove", onMouseMove, false);
@@ -233,80 +241,49 @@ export var FirstPersonCameraControls = function (camera) {
     return { oldYawRotation, oldPitchRotation, cameraIsMoving };
   };
 
-  this.addEventListeners = function (sceneSettings) {
-    document.addEventListener("keydown", this.onKeyDown, false);
-    document.addEventListener("keyup", this.onKeyUp, false);
+  this.addEventListeners = function () {
+    document.addEventListener("keydown", this.onKeyDown.bind(this), false);
+    document.addEventListener("keyup", this.onKeyUp.bind(this), false);
 
-    // window.addEventListener(
-    //   "mouseenter",
-    //   function (event) {
-    //     sceneSettings.ableToEngagePointerLock = false;
-    //   },
-    //   false
-    // );
-    // window.addEventListener(
-    //   "mouseleave",
-    //   function (event) {
-    //     sceneSettings.ableToEngagePointerLock = true;
-    //   },
-    //   false
-    // );
-
-    // document.addEventListener("wheel", function (event) {
-    //   handleChangeFOV(event, FOVSettings);
-    // });
-
-    window.addEventListener(
-      "click",
-      function (event) {
-        event.preventDefault();
-      },
-      false
-    );
-    window.addEventListener(
-      "dblclick",
-      function (event) {
-        event.preventDefault();
-      },
-      false
-    );
-
-    document.body.addEventListener(
-      "click",
-      // eslint-disable-next-line no-unused-vars
-      function (_) {
-        if (!sceneSettings.ableToEngagePointerLock || sceneSettings.isUIActive)
-          return;
-        this.requestPointerLock =
-          this.requestPointerLock || this.mozRequestPointerLock;
-        this.requestPointerLock();
-      },
-      false
-    );
-
-    // eslint-disable-next-line no-unused-vars
-    let pointerlockChange = function (event) {
+    const pointerlockChange = () => {
       if (
         document.pointerLockElement === document.body ||
         document.mozPointerLockElement === document.body ||
         document.webkitPointerLockElement === document.body
       ) {
-        document.addEventListener("keydown", this.onKeyDown, false);
-        document.addEventListener("keyup", this.onKeyUp, false);
-        sceneSettings.isPaused = false;
+        window.isPaused = false;
+        console.log("Pointer Lock Enabled");
+        // Ensure 'this.onMouseMove' is bound correctly
+        document.addEventListener(
+          "mousemove",
+          this.onMouseMove.bind(this),
+          false
+        );
       } else {
-        document.removeEventListener("keydown", this.onKeyDown, false);
-        document.removeEventListener("keyup", this.onKeyUp, false);
-        sceneSettings.isPaused = true;
+        window.isPaused = true;
+        console.log("Pointer Lock Disabled");
+        // Ensure 'this.onMouseMove' is unbound correctly
+        document.removeEventListener(
+          "mousemove",
+          this.onMouseMove.bind(this),
+          false
+        );
       }
     };
 
-    // Hook pointer lock state change events
+    // Attach the pointerlockchange event listener
     document.addEventListener("pointerlockchange", pointerlockChange, false);
     document.addEventListener("mozpointerlockchange", pointerlockChange, false);
     document.addEventListener(
       "webkitpointerlockchange",
       pointerlockChange,
+      false
+    );
+
+    // Set up click event to request pointer lock
+    document.body.addEventListener(
+      "click",
+      this.enablePointerLock.bind(this),
       false
     );
   };

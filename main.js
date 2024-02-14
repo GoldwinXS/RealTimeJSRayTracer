@@ -59,6 +59,7 @@ function initSceneData(sceneSettings) {
 
   sceneSettings.controls = setupControls(sceneSettings);
   sceneSettings.controls.addEventListeners(sceneSettings);
+  sceneSettings.isPaused = sceneSettings.controls.isPaused;
   // scene/demo-specific uniforms go here
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
   pathTracingUniforms.uVoxelMeshInvMatrix = { value: new THREE.Matrix4() };
@@ -183,9 +184,7 @@ function animate() {
 
   updateCameraVectors(sceneSettings);
 
-  if (!sceneSettings.isUIActive) {
-    sceneSettings.isPaused = sceneSettings.controls.handleInput(sceneSettings);
-  }
+  sceneSettings.isPaused = sceneSettings.controls.handleInput(sceneSettings);
 
   // the following gives us a rotation quaternion (4D vector), which will be useful for
   // rotating scene objects to match the camera's rotation
@@ -372,7 +371,7 @@ async function loadFilesAndStart(sceneSettings) {
   sceneSettings.gameManager.startGame();
   sceneSettings.voxels.voxelGeometry = voxelManager.voxelGeometries[0];
   sceneSettings.voxels.voxelManager = voxelManager;
-
+  sceneSettings.isPaused = true;
   // Update the state for the UI
   exportToWindow(sceneSettings, uiStatePropertyNames);
   initSceneData(sceneSettings);
