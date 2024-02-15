@@ -58,6 +58,8 @@ function initSceneData(sceneSettings) {
     sceneSettings.worldCamera
   );
 
+  // sceneSettings.controls = sceneSettings.gameManager.playerControls;
+
   // scene/demo-specific uniforms go here
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
   pathTracingUniforms.uVoxelMeshInvMatrix = { value: new THREE.Matrix4() };
@@ -125,8 +127,6 @@ function setupPathTracing(sceneSettings) {
     uniforms: sceneSettings.pathTracing.uniforms,
     geometry: sceneSettings.pathTracing.geometry,
     scene: sceneSettings.pathTracing.scene,
-    depthTest: false,
-    depthWrite: false,
     specialHandling: (mesh) => sceneSettings.worldCamera.add(mesh),
   });
   // Screen Copy Shader
@@ -136,8 +136,6 @@ function setupPathTracing(sceneSettings) {
     uniforms: sceneSettings.screenCopy.uniforms,
     geometry: new THREE.PlaneGeometry(2, 2),
     scene: sceneSettings.screenCopy.scene,
-    depthTest: false,
-    depthWrite: false,
   });
   // Screen Output Shader
   loadShaderAndCreateMesh(sceneSettings, {
@@ -146,8 +144,6 @@ function setupPathTracing(sceneSettings) {
     uniforms: sceneSettings.screenOutput.uniforms,
     geometry: new THREE.PlaneGeometry(2, 2),
     scene: sceneSettings.screenOutput.scene,
-    depthTest: false,
-    depthWrite: false,
   });
 
   setCameraInfoElementStyle(sceneSettings.cameraInfoElement);
@@ -167,7 +163,6 @@ function animate() {
   );
   // reset flags
   sceneSettings.cameraIsMoving = false;
-  // Update variables
   sceneSettings.frameTime = sceneSettings.clock.getDelta();
   sceneSettings.elapsedTime = sceneSettings.clock.getElapsedTime() % 1000;
 
@@ -323,11 +318,7 @@ function startApp() {
   );
 }
 
-async function loadFilesAndStart(sceneSettings) {
-  // Handle loading of any files ayncronously.
-  // Instantiate the manager
-  const voxelManager = new VoxelGeometryManager();
-
+function defineSpecialColors(voxelManager) {
   // Tracked Lights
   voxelManager.addSpecialColor({ red: 208, green: 206, blue: 129 }, 20);
   voxelManager.addSpecialColor({ red: 255, green: 33, blue: 0 }, 20);
@@ -348,21 +339,21 @@ async function loadFilesAndStart(sceneSettings) {
   // Glass
   voxelManager.addSpecialColor({ red: 41, green: 75, blue: 55 }, 3);
   voxelManager.addSpecialColor({ red: 72, green: 132, blue: 122 }, 3);
+}
 
-  // await voxelManager.addGeometry(
-  //   "./models/teapot.vox",
-  //   new THREE.Vector3(300, 10, -320),
-  //   5
-  // );
-  // voxelManager.setGeomRotation(0, "x", -90);
-  // // voxelManager.setGeomRotation(0, "y", -90);
-  // voxelManager.setGeomPosition(0, [300, 200, -300]);
+async function loadFilesAndStart(sceneSettings) {
+  // Handle loading of any files ayncronously.
+  // Instantiate the manager
+  const voxelManager = new VoxelGeometryManager();
+
+  defineSpecialColors(voxelManager);
+
   // Set up scene settings with the first geometry
   sceneSettings.gameManager = new GameManager(
     voxelManager,
     sceneSettings.worldCamera
   );
-  sceneSettings.gameManager.startGame();
+  sceneSettings.gameManager.startGame(sceneSettings.worldCamera.position);
   sceneSettings.voxels.voxelGeometry = voxelManager.voxelGeometries[0];
   sceneSettings.voxels.voxelManager = voxelManager;
   sceneSettings.isPaused = true;

@@ -143,8 +143,8 @@ export function loadShaderAndCreateMesh(sceneSettings, shaderConfig) {
             defines: shaderConfig.defines || {},
             vertexShader: vertexShaderText,
             fragmentShader: fragmentShaderText,
-            depthTest: shaderConfig.depthTest,
-            depthWrite: shaderConfig.depthWrite,
+            depthTest: false,
+            depthWrite: false,
           });
 
           const mesh = new THREE.Mesh(shaderConfig.geometry, material);

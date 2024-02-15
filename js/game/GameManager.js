@@ -28,8 +28,9 @@ export class GameManager {
     this.camera = camera;
   }
 
-  startGame() {
-    this.#setupGame();
+  startGame(camera) {
+    this.playerControls = new PlayerControls(camera);
+    this.#setupGame(camera);
     this.#addShootingMechanism();
   }
 
@@ -72,7 +73,7 @@ export class GameManager {
     this.currentRotation += 0.1;
   }
 
-  async #setupGame() {
+  async #setupGame(camera) {
     this.playerGeometry = await this.#setupGeometry();
     this.#cameraSetAndLookAt(this.playerGeometry.position);
     this.#setupOrbitingLights();
@@ -147,10 +148,5 @@ export class GameManager {
     // const offset = new Vector3(40, 10, 10); // Example offset
     // this.camera.position.copy(position).add(offset);
     this.camera.lookAt(position);
-  }
-
-  addPlayerControls(controls) {
-    // this.playerControls = new PlayerControls(controls);
-    // this.playerControls.addEventListeners();
   }
 }

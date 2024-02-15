@@ -1,13 +1,9 @@
-export class PlayerControls {
-  constructor(controls) {
-    this.controls = controls;
-  }
+import { FirstPersonCameraControls } from "./FirstPersonCameraControls";
+import { Vector3 } from "three";
 
-  onKeyDown() {
-    // super.onKeyDown(event); // Retain original functionality
-  }
-
-  movePlayer() {
-    // Placeholder for moving player logic
+export class PlayerControls extends FirstPersonCameraControls {
+  constructor(camera, ship) {
+    super(camera);
+    this.ship = ship; // Assuming the ship is a THREE.Object3D or similar
   }
 }

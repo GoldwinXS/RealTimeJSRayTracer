@@ -8,6 +8,7 @@ export class FirstPersonCameraControls {
   keyboardState = structuredClone(KeyboardState);
 
   constructor(camera) {
+    this.camera = camera;
     this.pitchObject = new THREE.Object3D();
     this.pitchObject.add(camera);
 
@@ -16,8 +17,8 @@ export class FirstPersonCameraControls {
     this.isPaused = true;
 
     this.boundOnMouseMove = this.#onMouseMove.bind(this);
-    this.boundOnKeyDown = this.#onKeyDown.bind(this);
-    this.boundOnKeyUp = this.#onKeyUp.bind(this);
+    this.boundOnKeyDown = this.onKeyDown.bind(this);
+    this.boundOnKeyUp = this.onKeyUp.bind(this);
 
     this.#setCurrentControls();
     this.#addPointerLockEventListeners();
@@ -27,37 +28,37 @@ export class FirstPersonCameraControls {
   handleInput(camera, cameraIsMoving, cameraFlightSpeed, frameTime) {
     this.#updateCameraVectors(camera);
     let cameraControlsObject = this.currentControls.object;
-    if (this.#keyPressed("KeyW")) {
+    if (this.keyPressed("KeyW")) {
       cameraControlsObject.position.add(
         camera.directionVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (this.#keyPressed("KeyS") && !this.#keyPressed("KeyW")) {
+    if (this.keyPressed("KeyS") && !this.keyPressed("KeyW")) {
       cameraControlsObject.position.sub(
         camera.directionVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (this.#keyPressed("KeyA") && !this.#keyPressed("KeyD")) {
+    if (this.keyPressed("KeyA") && !this.keyPressed("KeyD")) {
       cameraControlsObject.position.sub(
         camera.rightVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (this.#keyPressed("KeyD") && !this.#keyPressed("KeyA")) {
+    if (this.keyPressed("KeyD") && !this.keyPressed("KeyA")) {
       cameraControlsObject.position.add(
         camera.rightVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (this.#keyPressed("KeyQ") && !this.#keyPressed("KeyZ")) {
+    if (this.keyPressed("KeyQ") && !this.keyPressed("KeyZ")) {
       cameraControlsObject.position.add(
         camera.upVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (this.#keyPressed("KeyZ") && !this.#keyPressed("KeyQ")) {
+    if (this.keyPressed("KeyZ") && !this.keyPressed("KeyQ")) {
       cameraControlsObject.position.sub(
         camera.upVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
@@ -172,11 +173,11 @@ export class FirstPersonCameraControls {
     camera.rightVector.normalize();
   }
 
-  #keyPressed(keyName) {
+  keyPressed(keyName) {
     return this.keyboardState[keyName];
   }
 
-  #onKeyDown(event) {
+  onKeyDown(event) {
     if (window.isUIActive) {
       return;
     }
@@ -184,7 +185,7 @@ export class FirstPersonCameraControls {
     this.keyboardState[event.code] = true;
   }
 
-  #onKeyUp(event) {
+  onKeyUp(event) {
     if (window.isUIActive) {
       return;
     }
