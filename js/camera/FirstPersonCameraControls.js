@@ -100,14 +100,6 @@ export var FirstPersonCameraControls = function (camera) {
     );
   };
 
-  this.enablePointerLock = function () {
-    document.body.requestPointerLock =
-      document.body.requestPointerLock ||
-      document.mozRequestPointerLock ||
-      document.webkitRequestPointerLock;
-    document.body.requestPointerLock();
-  };
-
   document.addEventListener("mousemove", onMouseMove, false);
 
   this.getObject = function () {
@@ -241,35 +233,31 @@ export var FirstPersonCameraControls = function (camera) {
     return { oldYawRotation, oldPitchRotation, cameraIsMoving };
   };
 
+  const pointerlockChange = () => {
+    if (
+      document.pointerLockElement === document.body ||
+      document.mozPointerLockElement === document.body ||
+      document.webkitPointerLockElement === document.body
+    ) {
+      window.isPaused = false;
+      document.addEventListener(
+        "mousemove",
+        this.onMouseMove.bind(this),
+        false
+      );
+    } else {
+      window.isPaused = true;
+      document.removeEventListener(
+        "mousemove",
+        this.onMouseMove.bind(this),
+        false
+      );
+    }
+  };
+
   this.addEventListeners = function () {
     document.addEventListener("keydown", this.onKeyDown.bind(this), false);
     document.addEventListener("keyup", this.onKeyUp.bind(this), false);
-
-    const pointerlockChange = () => {
-      if (
-        document.pointerLockElement === document.body ||
-        document.mozPointerLockElement === document.body ||
-        document.webkitPointerLockElement === document.body
-      ) {
-        window.isPaused = false;
-        console.log("Pointer Lock Enabled");
-        // Ensure 'this.onMouseMove' is bound correctly
-        document.addEventListener(
-          "mousemove",
-          this.onMouseMove.bind(this),
-          false
-        );
-      } else {
-        window.isPaused = true;
-        console.log("Pointer Lock Disabled");
-        // Ensure 'this.onMouseMove' is unbound correctly
-        document.removeEventListener(
-          "mousemove",
-          this.onMouseMove.bind(this),
-          false
-        );
-      }
-    };
 
     // Attach the pointerlockchange event listener
     document.addEventListener("pointerlockchange", pointerlockChange, false);
@@ -280,10 +268,18 @@ export var FirstPersonCameraControls = function (camera) {
       false
     );
 
+    var enablePointerLock = function () {
+      document.body.requestPointerLock =
+        document.body.requestPointerLock ||
+        document.mozRequestPointerLock ||
+        document.webkitRequestPointerLock;
+      document.body.requestPointerLock();
+    };
+
     // Set up click event to request pointer lock
     document.body.addEventListener(
       "click",
-      this.enablePointerLock.bind(this),
+      enablePointerLock.bind(this),
       false
     );
   };

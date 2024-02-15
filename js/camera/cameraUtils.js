@@ -10,12 +10,9 @@ export function setupControls({ worldCamera, controls, cameraControls }) {
   cameraControls.object = controls.getObject();
   cameraControls.yawObject = controls.getYawObject();
   cameraControls.pitchObject = controls.getPitchObject();
-  cameraControls.object.name = "cameraControls.object";
-  cameraControls.yawObject.name = "cameraControls.yawObject";
-  cameraControls.pitchObject.name = "cameraControls.pitchObject";
-  cameraControls.object.position.set(96, 397, 278);
-  cameraControls.yawObject.rotation.y = -0.3;
-  cameraControls.pitchObject.rotation.x = -0.45;
+  // cameraControls.object.position.set(96, 397, 278);
+  // cameraControls.yawObject.rotation.y = -0.3;
+  // cameraControls.pitchObject.rotation.x = -0.45;
   return controls;
 }
 

@@ -324,15 +324,7 @@ export class VoxelGeometryManager {
       lightData[i++] = position[1];
       lightData[i++] = position[2];
       lightData[i++] = Number(this.lights[key].voxelSize);
-      console.log(
-        `added light data ${position}, with size ${this.lights[key].voxelSize}`
-      );
     }
-    console.log(
-      `finished adding lights, total lights added: ${
-        Object.values(this.lights).length
-      }, texture size ${lightTextureSize}`
-    );
 
     // Create the data texture
     const lightTexture = new THREE.DataTexture(

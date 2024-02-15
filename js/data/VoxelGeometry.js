@@ -217,7 +217,6 @@ export class VoxelGeometry {
     // Create an array of 26 floats for use in the shader.
     const invMatrix = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
     const matrixElements = invMatrix.elements;
-    console.log(invMatrix);
     return new Float32Array([
       this.voxelSize,
       this.gridDimensions.x,

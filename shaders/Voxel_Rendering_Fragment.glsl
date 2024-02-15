@@ -16,9 +16,7 @@ uniform int uNumberOfVoxelLights;
 uniform float uVoxelLightTextureSize;
 
 vec3 emission = vec3(0);
-vec3 whiteLightColor = vec3(1.0, 1.0, 1.0) * 5.0;
-vec3 yellowLightColor = vec3(1.0, 0.8, 0.2) * 4.0;
-vec3 blueLightColor = vec3(0.1, 0.7, 1.0) * 2.0;
+vec3 yellowLightColor = vec3(1.0, 0.8, 0.2) * 20.0;
 
 struct VoxelGeometry {
 	mat4 voxelMeshInvMatrix;

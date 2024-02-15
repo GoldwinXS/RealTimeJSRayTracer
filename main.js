@@ -59,7 +59,7 @@ function initSceneData(sceneSettings) {
 
   sceneSettings.controls = setupControls(sceneSettings);
   sceneSettings.controls.addEventListeners(sceneSettings);
-  sceneSettings.isPaused = sceneSettings.controls.isPaused;
+
   // scene/demo-specific uniforms go here
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
   pathTracingUniforms.uVoxelMeshInvMatrix = { value: new THREE.Matrix4() };
@@ -104,6 +104,7 @@ function setupPathTracing(sceneSettings) {
   sceneSettings.quadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   sceneSettings.screenCopy.scene.add(sceneSettings.quadCamera);
   sceneSettings.screenOutput.scene.add(sceneSettings.quadCamera);
+
   sceneSettings.pathTracing.scene.add(sceneSettings.cameraControls.object);
 
   // Setup render targets.
@@ -158,6 +159,20 @@ function setupPathTracing(sceneSettings) {
   animate();
 }
 
+function handleControls() {
+  // Handle user input.
+  const { oldYawRotation, oldPitchRotation, cameraIsMoving } =
+    sceneSettings.controls.detectMovement(sceneSettings);
+
+  sceneSettings.oldYawRotation = oldYawRotation;
+  sceneSettings.oldPitchRotation = oldPitchRotation;
+  sceneSettings.cameraIsMoving = cameraIsMoving;
+
+  updateCameraVectors(sceneSettings);
+
+  sceneSettings.isPaused = sceneSettings.controls.handleInput(sceneSettings);
+}
+
 function animate() {
   // Extract any changes from the UI
   importFromWindow(sceneSettings, uiStatePropertyNames);
@@ -174,17 +189,7 @@ function animate() {
   if (sceneSettings.needChangePixelResolution) {
     onWindowResize();
   }
-
-  // Handle user input.
-  const { oldYawRotation, oldPitchRotation, cameraIsMoving } =
-    sceneSettings.controls.detectMovement(sceneSettings);
-  sceneSettings.oldYawRotation = oldYawRotation;
-  sceneSettings.oldPitchRotation = oldPitchRotation;
-  sceneSettings.cameraIsMoving = cameraIsMoving;
-
-  updateCameraVectors(sceneSettings);
-
-  sceneSettings.isPaused = sceneSettings.controls.handleInput(sceneSettings);
+  handleControls();
 
   // the following gives us a rotation quaternion (4D vector), which will be useful for
   // rotating scene objects to match the camera's rotation
@@ -302,6 +307,7 @@ function animate() {
   );
 
   sceneSettings.stats.update();
+  sceneSettings.gameManager.handleAnimationFrame();
   requestAnimationFrame(animate);
 }
 
@@ -332,15 +338,10 @@ async function loadFilesAndStart(sceneSettings) {
   // Instantiate the manager
   const voxelManager = new VoxelGeometryManager();
 
-  // Lights
+  // Tracked Lights
   voxelManager.addSpecialColor({ red: 208, green: 206, blue: 129 }, 20);
   voxelManager.addSpecialColor({ red: 255, green: 33, blue: 0 }, 20);
   voxelManager.addSpecialColor({ red: 0, green: 255, blue: 203 }, 20);
-
-  // // Metals
-  // voxelManager.addSpecialColor({ red: 87, green: 87, blue: 87 }, 3);
-
-  // voxelManager.addSpecialColor({ red: 208, green: 204, blue: 115 }, 19);
 
   // Lights
   voxelManager.addSpecialColor({ red: 208, green: 204, blue: 115 }, 19);
@@ -348,12 +349,15 @@ async function loadFilesAndStart(sceneSettings) {
   // Untracked Lights
   voxelManager.addSpecialColor({ red: 225, green: 101, blue: 101 }, 19);
   voxelManager.addSpecialColor({ red: 148, green: 207, blue: 210 }, 19);
+  voxelManager.addSpecialColor({ red: 228, green: 92, blue: 92 }, 19);
 
   // Metals
   voxelManager.addSpecialColor({ red: 109, green: 109, blue: 109 }, 3);
+  voxelManager.addSpecialColor({ red: 102, green: 102, blue: 102 }, 3);
 
   // Glass
   voxelManager.addSpecialColor({ red: 41, green: 75, blue: 55 }, 3);
+  voxelManager.addSpecialColor({ red: 72, green: 132, blue: 122 }, 3);
 
   // await voxelManager.addGeometry(
   //   "./models/teapot.vox",
