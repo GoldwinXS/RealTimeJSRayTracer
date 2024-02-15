@@ -76,6 +76,7 @@ let KeyboardState = {
 };
 
 export class FirstPersonCameraControls {
+  currentControls;
   constructor(camera) {
     this.camera = camera;
     this.camera.rotation.set(0, 0, 0);
@@ -104,6 +105,14 @@ export class FirstPersonCameraControls {
       -PI_2,
       Math.min(PI_2, this.pitchObject.rotation.x)
     );
+  }
+
+  setCurrentControls() {
+    this.currentControls = {
+      object: this.getYawObject(),
+      yawObject: this.getYawObject(),
+      pitchObject: this.getPitchObject(),
+    };
   }
 
   getYawObject() {
@@ -161,14 +170,8 @@ export class FirstPersonCameraControls {
     KeyboardState[event.code] = false;
   }
 
-  handleInput({
-    cameraControls,
-    camera,
-    cameraIsMoving,
-    cameraFlightSpeed,
-    frameTime,
-  }) {
-    let cameraControlsObject = cameraControls.object;
+  handleInput({ camera, cameraIsMoving, cameraFlightSpeed, frameTime }) {
+    let cameraControlsObject = this.currentControls.object;
     if (this.keyPressed("KeyW")) {
       cameraControlsObject.position.add(
         camera.directionVector.multiplyScalar(cameraFlightSpeed * frameTime)
@@ -231,7 +234,7 @@ export class FirstPersonCameraControls {
     return { oldYawRotation, oldPitchRotation, cameraIsMoving };
   };
 
-  pointerlockChange() {
+  #pointerlockChange() {
     if (
       document.pointerLockElement === document.body ||
       document.mozPointerLockElement === document.body ||
@@ -261,17 +264,17 @@ export class FirstPersonCameraControls {
     // Attach the pointerlockchange event listener
     document.addEventListener(
       "pointerlockchange",
-      this.pointerlockChange.bind(this),
+      this.#pointerlockChange.bind(this),
       false
     );
     document.addEventListener(
       "mozpointerlockchange",
-      this.pointerlockChange.bind(this),
+      this.#pointerlockChange.bind(this),
       false
     );
     document.addEventListener(
       "webkitpointerlockchange",
-      this.pointerlockChange.bind(this),
+      this.#pointerlockChange.bind(this),
       false
     );
 

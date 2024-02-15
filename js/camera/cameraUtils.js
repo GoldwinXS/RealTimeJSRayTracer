@@ -1,14 +1,12 @@
 import { FirstPersonCameraControls } from "./FirstPersonCameraControls";
 
-export function setupControls({ worldCamera, controls, cameraControls }) {
+export function setupControls({ worldCamera, controls }) {
   controls = new FirstPersonCameraControls(worldCamera);
   // Initialize Controls
   controls.isPaused = true;
 
   // Set up Camera Controls
-  cameraControls.object = controls.getYawObject();
-  cameraControls.yawObject = controls.getYawObject();
-  cameraControls.pitchObject = controls.getPitchObject();
+  controls.setCurrentControls();
   return controls;
 }
 

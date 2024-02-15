@@ -105,7 +105,9 @@ function setupPathTracing(sceneSettings) {
   sceneSettings.screenCopy.scene.add(sceneSettings.quadCamera);
   sceneSettings.screenOutput.scene.add(sceneSettings.quadCamera);
 
-  sceneSettings.pathTracing.scene.add(sceneSettings.cameraControls.object);
+  sceneSettings.pathTracing.scene.add(
+    sceneSettings.controls.currentControls.object
+  );
 
   // Setup render targets.
   sceneSettings.pathTracing.renderTarget = setupRenderTargets(

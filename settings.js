@@ -86,11 +86,6 @@ export const sceneSettings = {
   cameraFlightSpeed: 300,
   PI_2: Math.PI / 2,
   controls: null,
-  cameraControls: {
-    object: null,
-    yawObject: null,
-    pitchObject: null,
-  },
   camera: {
     directionVector: new THREE.Vector3(),
     rightVector: new THREE.Vector3(),
