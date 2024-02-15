@@ -1,72 +1,12 @@
 import * as THREE from "three";
-
-export let cameraRotationSpeed = 1;
-export let PI_2 = Math.PI / 2;
-
-let KeyboardState = {
-  KeyA: false,
-  KeyB: false,
-  KeyC: false,
-  KeyD: false,
-  KeyE: false,
-  KeyF: false,
-  KeyG: false,
-  KeyH: false,
-  KeyI: false,
-  KeyJ: false,
-  KeyK: false,
-  KeyL: false,
-  KeyM: false,
-  KeyN: false,
-  KeyO: false,
-  KeyP: false,
-  KeyQ: false,
-  KeyR: false,
-  KeyS: false,
-  KeyT: false,
-  KeyU: false,
-  KeyV: false,
-  KeyW: false,
-  KeyX: false,
-  KeyY: false,
-  KeyZ: false,
-  ArrowLeft: false,
-  ArrowUp: false,
-  ArrowRight: false,
-  ArrowDown: false,
-  Space: false,
-  Enter: false,
-  PageUp: false,
-  PageDown: false,
-  Tab: false,
-  Minus: false,
-  Equal: false,
-  BracketLeft: false,
-  BracketRight: false,
-  Semicolon: false,
-  Quote: false,
-  Backquote: false,
-  Comma: false,
-  Period: false,
-  ShiftLeft: false,
-  ShiftRight: false,
-  Slash: false,
-  Backslash: false,
-  Backspace: false,
-  Digit1: false,
-  Digit2: false,
-  Digit3: false,
-  Digit4: false,
-  Digit5: false,
-  Digit6: false,
-  Digit7: false,
-  Digit8: false,
-  Digit9: false,
-  Digit0: false,
-};
+import { KeyboardState } from "./cameraUtils";
 
 export class FirstPersonCameraControls {
   currentControls;
+  cameraRotationSpeed = 1;
+  PI_2 = Math.PI / 2;
+  keyboardState = structuredClone(KeyboardState);
+
   constructor(camera) {
     this.pitchObject = new THREE.Object3D();
     this.pitchObject.add(camera);
@@ -80,7 +20,7 @@ export class FirstPersonCameraControls {
     this.boundOnKeyUp = this.#onKeyUp.bind(this);
 
     this.#setCurrentControls();
-    this.addPointerLockEventListeners();
+    this.#addPointerLockEventListeners();
     this.enable();
   }
 
@@ -126,7 +66,19 @@ export class FirstPersonCameraControls {
     return cameraIsMoving;
   }
 
-  addPointerLockEventListeners() {
+  enable() {
+    document.addEventListener("mousemove", this.boundOnMouseMove, false);
+    document.addEventListener("keydown", this.boundOnKeyDown, false);
+    document.addEventListener("keyup", this.boundOnKeyUp, false);
+  }
+
+  disable() {
+    document.removeEventListener("mousemove", this.boundOnMouseMove, false);
+    document.removeEventListener("keydown", this.boundOnKeyDown, false);
+    document.removeEventListener("keyup", this.boundOnKeyUp, false);
+  }
+
+  #addPointerLockEventListeners() {
     // Attach the pointerlockchange event listener
     document.addEventListener(
       "pointerlockchange",
@@ -160,29 +112,19 @@ export class FirstPersonCameraControls {
     );
   }
 
-  enable() {
-    document.addEventListener("mousemove", this.boundOnMouseMove, false);
-    document.addEventListener("keydown", this.boundOnKeyDown, false);
-    document.addEventListener("keyup", this.boundOnKeyUp, false);
-  }
-
-  disable() {
-    document.removeEventListener("mousemove", this.boundOnMouseMove, false);
-    document.removeEventListener("keydown", this.boundOnKeyDown, false);
-    document.removeEventListener("keyup", this.boundOnKeyUp, false);
-  }
-
   #onMouseMove(event) {
     if (window?.isPaused || window?.isUIActive) return;
     this.movementX = event.movementX || event.mozMovementX || 0;
     this.movementY = event.movementY || event.mozMovementY || 0;
 
-    this.yawObject.rotation.y -= this.movementX * 0.0012 * cameraRotationSpeed;
-    this.pitchObject.rotation.x -= this.movementY * 0.001 * cameraRotationSpeed;
+    this.yawObject.rotation.y -=
+      this.movementX * 0.0012 * this.cameraRotationSpeed;
+    this.pitchObject.rotation.x -=
+      this.movementY * 0.001 * this.cameraRotationSpeed;
     // clamp the camera's vertical movement (around the x-axis) to the scene's 'ceiling' and 'floor'
     this.pitchObject.rotation.x = Math.max(
-      -PI_2,
-      Math.min(PI_2, this.pitchObject.rotation.x)
+      -this.PI_2,
+      Math.min(this.PI_2, this.pitchObject.rotation.x)
     );
   }
 
@@ -231,7 +173,7 @@ export class FirstPersonCameraControls {
   }
 
   #keyPressed(keyName) {
-    return KeyboardState[keyName];
+    return this.keyboardState[keyName];
   }
 
   #onKeyDown(event) {
@@ -239,7 +181,7 @@ export class FirstPersonCameraControls {
       return;
     }
     event.preventDefault();
-    KeyboardState[event.code] = true;
+    this.keyboardState[event.code] = true;
   }
 
   #onKeyUp(event) {
@@ -247,7 +189,7 @@ export class FirstPersonCameraControls {
       return;
     }
     event.preventDefault();
-    KeyboardState[event.code] = false;
+    this.keyboardState[event.code] = false;
   }
 
   #pointerlockChange() {
