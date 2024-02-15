@@ -47,7 +47,7 @@ export function onWindowResize(event) {
     sceneSettings.pathTracing.uniforms.uVLen.value *
     sceneSettings.worldCamera.aspect;
 
-  if (!sceneSettings.mouseControl && sceneSettings.mobileShowButtons) {
+  if (sceneSettings.mobileShowButtons) {
     sceneSettings.button1Element.style.display = "";
     sceneSettings.button2Element.style.display = "";
     sceneSettings.button3Element.style.display = "";

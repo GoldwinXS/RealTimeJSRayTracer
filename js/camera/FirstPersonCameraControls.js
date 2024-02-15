@@ -89,8 +89,10 @@ export class FirstPersonCameraControls {
 
     this.yawObject = new THREE.Object3D();
     this.yawObject.add(this.pitchObject);
-
+    this.isPaused = true;
     document.addEventListener("mousemove", this.#onMouseMove.bind(this), false);
+    this.setCurrentControls();
+    this.addEventListeners();
   }
 
   #onMouseMove(event) {
@@ -113,6 +115,12 @@ export class FirstPersonCameraControls {
       yawObject: this.getYawObject(),
       pitchObject: this.getPitchObject(),
     };
+  }
+
+  setOldControls(oldYawRotation, oldPitchRotation, cameraIsMoving) {
+    this.oldYawRotation = oldYawRotation;
+    this.oldPitchRotation = oldPitchRotation;
+    this.cameraIsMoving = cameraIsMoving;
   }
 
   getYawObject() {
@@ -170,7 +178,8 @@ export class FirstPersonCameraControls {
     KeyboardState[event.code] = false;
   }
 
-  handleInput({ camera, cameraIsMoving, cameraFlightSpeed, frameTime }) {
+  handleInput(camera, cameraIsMoving, cameraFlightSpeed, frameTime) {
+    this.updateCameraVectors(camera);
     let cameraControlsObject = this.currentControls.object;
     if (this.keyPressed("KeyW")) {
       cameraControlsObject.position.add(
@@ -210,29 +219,6 @@ export class FirstPersonCameraControls {
     }
     return cameraIsMoving;
   }
-
-  detectMovement = function ({
-    mouseControl,
-    oldYawRotation,
-    oldPitchRotation,
-    cameraIsMoving,
-  }) {
-    // check user controls
-    if (mouseControl) {
-      // movement detected
-      if (
-        oldYawRotation != this.yawObject.rotation.y ||
-        oldPitchRotation != this.pitchObject.rotation.x
-      ) {
-        cameraIsMoving = true;
-      }
-
-      // save state for next frame
-      oldYawRotation = this.yawObject.rotation.y;
-      oldPitchRotation = this.pitchObject.rotation.x;
-    }
-    return { oldYawRotation, oldPitchRotation, cameraIsMoving };
-  };
 
   #pointerlockChange() {
     if (

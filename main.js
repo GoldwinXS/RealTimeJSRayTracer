@@ -8,11 +8,7 @@ import {
   updateAnimatedPathtracingUniforms,
   loadShaderAndCreateMesh,
 } from "./js/pathtracing/PathTracingUtils";
-import {
-  setupControls,
-  updateCameraVectors,
-  setCameraInfoElementStyle,
-} from "./js/camera/cameraUtils";
+import { setCameraInfoElementStyle } from "./js/camera/cameraUtils";
 import { VoxelGeometryManager } from "./js/data/MultiVoxelLoader";
 import {
   importFromWindow,
@@ -21,6 +17,7 @@ import {
 } from "./js/uiState";
 import { RGBELoader } from "./js/RGBELoader";
 import { GameManager } from "./js/game/GameManager";
+import { FirstPersonCameraControls } from "./js/camera/FirstPersonCameraControls";
 
 function initSceneData(sceneSettings) {
   // Initialize Renderer and Context
@@ -57,8 +54,9 @@ function initSceneData(sceneSettings) {
   let hdrLoader = new RGBELoader();
   hdrLoader.type = THREE.FloatType; // override THREE's default of HalfFloatType
 
-  sceneSettings.controls = setupControls(sceneSettings);
-  sceneSettings.controls.addEventListeners(sceneSettings);
+  sceneSettings.controls = new FirstPersonCameraControls(
+    sceneSettings.worldCamera
+  );
 
   // scene/demo-specific uniforms go here
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
@@ -161,20 +159,6 @@ function setupPathTracing(sceneSettings) {
   animate();
 }
 
-function handleControls() {
-  // Handle user input.
-  const { oldYawRotation, oldPitchRotation, cameraIsMoving } =
-    sceneSettings.controls.detectMovement(sceneSettings);
-
-  sceneSettings.oldYawRotation = oldYawRotation;
-  sceneSettings.oldPitchRotation = oldPitchRotation;
-  sceneSettings.cameraIsMoving = cameraIsMoving;
-
-  updateCameraVectors(sceneSettings);
-
-  sceneSettings.isPaused = sceneSettings.controls.handleInput(sceneSettings);
-}
-
 function animate() {
   // Extract any changes from the UI
   importFromWindow(sceneSettings, uiStatePropertyNames);
@@ -191,7 +175,12 @@ function animate() {
   if (sceneSettings.needChangePixelResolution) {
     onWindowResize();
   }
-  handleControls();
+  sceneSettings.isPaused = sceneSettings.controls.handleInput(
+    sceneSettings.camera,
+    sceneSettings.cameraIsMoving,
+    sceneSettings.cameraFlightSpeed,
+    sceneSettings.frameTime
+  );
 
   // the following gives us a rotation quaternion (4D vector), which will be useful for
   // rotating scene objects to match the camera's rotation
