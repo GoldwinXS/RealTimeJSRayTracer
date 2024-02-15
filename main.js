@@ -216,7 +216,7 @@ function animate() {
   // sceneSettings.voxels.voxelManager.updateShaderData();
 
   // INFO
-  const camPosition = sceneSettings.controls.movementObject.position;
+  const camPosition = sceneSettings.controls.yawObject.position;
   const numberOfRays = Math.round(
     sceneSettings.context?.drawingBufferHeight *
       sceneSettings.context?.drawingBufferWidth *
@@ -254,7 +254,6 @@ function animate() {
   }
 
   // CAMERA
-  sceneSettings.controls.movementObject.updateMatrixWorld(true);
   sceneSettings.controls.yawObject.updateMatrixWorld(true);
   sceneSettings.pathTracing.uniforms.uCameraMatrix.value.copy(
     sceneSettings.worldCamera.matrixWorld

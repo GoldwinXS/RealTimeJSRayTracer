@@ -81,9 +81,6 @@ export class FirstPersonCameraControls {
     this.camera = camera;
     this.camera.rotation.set(0, 0, 0);
 
-    this.movementObject = new THREE.Object3D();
-    this.movementObject.add(camera);
-
     this.pitchObject = new THREE.Object3D();
     this.pitchObject.add(camera);
 
