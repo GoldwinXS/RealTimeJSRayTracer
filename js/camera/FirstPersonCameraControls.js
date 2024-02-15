@@ -75,94 +75,93 @@ let KeyboardState = {
   Digit0: false,
 };
 
-export var FirstPersonCameraControls = function (camera) {
-  camera.rotation.set(0, 0, 0);
+export class FirstPersonCameraControls {
+  constructor(camera) {
+    this.camera = camera;
+    this.camera.rotation.set(0, 0, 0);
 
-  var pitchObject = new THREE.Object3D();
-  pitchObject.add(camera);
-  var yawObject = new THREE.Object3D();
-  yawObject.add(pitchObject);
+    this.movementObject = new THREE.Object3D();
+    this.movementObject.add(camera);
 
-  var movementX = 0;
-  var movementY = 0;
+    this.pitchObject = new THREE.Object3D();
+    this.pitchObject.add(camera);
 
-  var onMouseMove = function (event) {
+    this.yawObject = new THREE.Object3D();
+    this.yawObject.add(this.pitchObject);
+
+    document.addEventListener("mousemove", this.#onMouseMove.bind(this), false);
+  }
+
+  #onMouseMove(event) {
     if (window?.isPaused || window?.isUIActive) return;
-    movementX = event.movementX || event.mozMovementX || 0;
-    movementY = event.movementY || event.mozMovementY || 0;
+    this.movementX = event.movementX || event.mozMovementX || 0;
+    this.movementY = event.movementY || event.mozMovementY || 0;
 
-    yawObject.rotation.y -= movementX * 0.0012 * cameraRotationSpeed;
-    pitchObject.rotation.x -= movementY * 0.001 * cameraRotationSpeed;
+    this.yawObject.rotation.y -= this.movementX * 0.0012 * cameraRotationSpeed;
+    this.pitchObject.rotation.x -= this.movementY * 0.001 * cameraRotationSpeed;
     // clamp the camera's vertical movement (around the x-axis) to the scene's 'ceiling' and 'floor'
-    pitchObject.rotation.x = Math.max(
+    this.pitchObject.rotation.x = Math.max(
       -PI_2,
-      Math.min(PI_2, pitchObject.rotation.x)
+      Math.min(PI_2, this.pitchObject.rotation.x)
     );
-  };
+  }
 
-  document.addEventListener("mousemove", onMouseMove, false);
+  getYawObject() {
+    return this.yawObject;
+  }
 
-  this.getObject = function () {
-    return yawObject;
-  };
+  getPitchObject() {
+    return this.pitchObject;
+  }
 
-  this.getYawObject = function () {
-    return yawObject;
-  };
+  getDirection(v) {
+    const te = this.pitchObject.matrixWorld.elements;
+    v.set(te[8], te[9], te[10]).negate();
+    return v;
+  }
 
-  this.getPitchObject = function () {
-    return pitchObject;
-  };
+  getUpVector(v) {
+    const te = this.pitchObject.matrixWorld.elements;
+    v.set(te[4], te[5], te[6]);
+    return v;
+  }
 
-  this.getDirection = (function () {
-    var te = pitchObject.matrixWorld.elements;
-    return function (v) {
-      v.set(te[8], te[9], te[10]).negate();
+  getRightVector(v) {
+    const te = this.pitchObject.matrixWorld.elements;
+    v.set(te[0], te[1], te[2]);
+    return v;
+  }
 
-      return v;
-    };
-  })();
+  updateCameraVectors(camera) {
+    this.getDirection(camera.directionVector);
 
-  this.getUpVector = (function () {
-    var te = pitchObject.matrixWorld.elements;
+    this.getUpVector(camera.upVector);
+    this.getRightVector(camera.rightVector);
+    camera.directionVector.normalize();
+    camera.upVector.normalize();
+    camera.rightVector.normalize();
+  }
 
-    return function (v) {
-      v.set(te[4], te[5], te[6]);
-
-      return v;
-    };
-  })();
-
-  this.getRightVector = (function () {
-    var te = pitchObject.matrixWorld.elements;
-
-    return function (v) {
-      v.set(te[0], te[1], te[2]);
-
-      return v;
-    };
-  })();
-
-  function keyPressed(keyName) {
+  keyPressed(keyName) {
     return KeyboardState[keyName];
   }
-  this.onKeyDown = function (event) {
+  onKeyDown(event) {
     if (window.isUIActive) {
       return;
     }
     event.preventDefault();
     KeyboardState[event.code] = true;
-  };
+  }
 
-  this.onKeyUp = function (event) {
+  onKeyUp(event) {
     if (window.isUIActive) {
       return;
     }
     event.preventDefault();
     KeyboardState[event.code] = false;
-  };
+  }
 
-  this.handleInput = function ({
+  handleInput({
     cameraControls,
     camera,
     cameraIsMoving,
@@ -170,48 +169,47 @@ export var FirstPersonCameraControls = function (camera) {
     frameTime,
   }) {
     let cameraControlsObject = cameraControls.object;
-    if (keyPressed("KeyW")) {
+    if (this.keyPressed("KeyW")) {
       cameraControlsObject.position.add(
         camera.directionVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (keyPressed("KeyS") && !keyPressed("KeyW")) {
+    if (this.keyPressed("KeyS") && !this.keyPressed("KeyW")) {
       cameraControlsObject.position.sub(
         camera.directionVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (keyPressed("KeyA") && !keyPressed("KeyD")) {
+    if (this.keyPressed("KeyA") && !this.keyPressed("KeyD")) {
       cameraControlsObject.position.sub(
         camera.rightVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (keyPressed("KeyD") && !keyPressed("KeyA")) {
+    if (this.keyPressed("KeyD") && !this.keyPressed("KeyA")) {
       cameraControlsObject.position.add(
         camera.rightVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (keyPressed("KeyQ") && !keyPressed("KeyZ")) {
+    if (this.keyPressed("KeyQ") && !this.keyPressed("KeyZ")) {
       cameraControlsObject.position.add(
         camera.upVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
-    if (keyPressed("KeyZ") && !keyPressed("KeyQ")) {
+    if (this.keyPressed("KeyZ") && !this.keyPressed("KeyQ")) {
       cameraControlsObject.position.sub(
         camera.upVector.multiplyScalar(cameraFlightSpeed * frameTime)
       );
       cameraIsMoving = true;
     }
     return cameraIsMoving;
-  };
+  }
 
-  this.detectMovement = function ({
+  detectMovement = function ({
     mouseControl,
-    cameraControls,
     oldYawRotation,
     oldPitchRotation,
     cameraIsMoving,
@@ -220,20 +218,20 @@ export var FirstPersonCameraControls = function (camera) {
     if (mouseControl) {
       // movement detected
       if (
-        oldYawRotation != cameraControls.yawObject.rotation.y ||
-        oldPitchRotation != cameraControls.pitchObject.rotation.x
+        oldYawRotation != this.yawObject.rotation.y ||
+        oldPitchRotation != this.pitchObject.rotation.x
       ) {
         cameraIsMoving = true;
       }
 
       // save state for next frame
-      oldYawRotation = cameraControls.yawObject.rotation.y;
-      oldPitchRotation = cameraControls.pitchObject.rotation.x;
+      oldYawRotation = this.yawObject.rotation.y;
+      oldPitchRotation = this.pitchObject.rotation.x;
     }
     return { oldYawRotation, oldPitchRotation, cameraIsMoving };
   };
 
-  const pointerlockChange = () => {
+  pointerlockChange() {
     if (
       document.pointerLockElement === document.body ||
       document.mozPointerLockElement === document.body ||
@@ -242,29 +240,38 @@ export var FirstPersonCameraControls = function (camera) {
       window.isPaused = false;
       document.addEventListener(
         "mousemove",
-        this.onMouseMove.bind(this),
+        this.#onMouseMove.bind(this),
         false
       );
     } else {
       window.isPaused = true;
       document.removeEventListener(
         "mousemove",
-        this.onMouseMove.bind(this),
+        this.#onMouseMove.bind(this),
         false
       );
     }
-  };
+  }
 
-  this.addEventListeners = function () {
+  addEventListeners() {
     document.addEventListener("keydown", this.onKeyDown.bind(this), false);
     document.addEventListener("keyup", this.onKeyUp.bind(this), false);
+    document.addEventListener("mousemove", this.#onMouseMove.bind(this), false);
 
     // Attach the pointerlockchange event listener
-    document.addEventListener("pointerlockchange", pointerlockChange, false);
-    document.addEventListener("mozpointerlockchange", pointerlockChange, false);
+    document.addEventListener(
+      "pointerlockchange",
+      this.pointerlockChange.bind(this),
+      false
+    );
+    document.addEventListener(
+      "mozpointerlockchange",
+      this.pointerlockChange.bind(this),
+      false
+    );
     document.addEventListener(
       "webkitpointerlockchange",
-      pointerlockChange,
+      this.pointerlockChange.bind(this),
       false
     );
 
@@ -282,5 +289,5 @@ export var FirstPersonCameraControls = function (camera) {
       enablePointerLock.bind(this),
       false
     );
-  };
-};
+  }
+}

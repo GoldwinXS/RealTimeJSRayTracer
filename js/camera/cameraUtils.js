@@ -3,16 +3,12 @@ import { FirstPersonCameraControls } from "./FirstPersonCameraControls";
 export function setupControls({ worldCamera, controls, cameraControls }) {
   controls = new FirstPersonCameraControls(worldCamera);
   // Initialize Controls
-  controls.name = "controls";
   controls.isPaused = true;
 
   // Set up Camera Controls
-  cameraControls.object = controls.getObject();
+  cameraControls.object = controls.getYawObject();
   cameraControls.yawObject = controls.getYawObject();
   cameraControls.pitchObject = controls.getPitchObject();
-  // cameraControls.object.position.set(96, 397, 278);
-  // cameraControls.yawObject.rotation.y = -0.3;
-  // cameraControls.pitchObject.rotation.x = -0.45;
   return controls;
 }
 

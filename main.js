@@ -225,7 +225,7 @@ function animate() {
   // sceneSettings.voxels.voxelManager.updateShaderData();
 
   // INFO
-  const camPosition = sceneSettings.cameraControls.object.position;
+  const camPosition = sceneSettings.controls.movementObject.position;
   const numberOfRays = Math.round(
     sceneSettings.context?.drawingBufferHeight *
       sceneSettings.context?.drawingBufferWidth *
@@ -263,8 +263,8 @@ function animate() {
   }
 
   // CAMERA
-  sceneSettings.cameraControls.object.updateMatrixWorld(true);
-  sceneSettings.cameraControls.yawObject.updateMatrixWorld(true);
+  sceneSettings.controls.movementObject.updateMatrixWorld(true);
+  sceneSettings.controls.yawObject.updateMatrixWorld(true);
   sceneSettings.pathTracing.uniforms.uCameraMatrix.value.copy(
     sceneSettings.worldCamera.matrixWorld
   );
