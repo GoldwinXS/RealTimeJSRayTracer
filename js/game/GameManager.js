@@ -1,5 +1,6 @@
 import { Vector3 } from "three";
 import { PlayerControls } from "../camera/PlayerControls";
+import { FirstPersonCameraControls } from "../camera/FirstPersonCameraControls";
 
 export class GameManager {
   starshipFile = "../../models/xwingColor.vox";
@@ -7,7 +8,6 @@ export class GameManager {
   tealSunFile = "../../models/tealLight.vox";
   redSunFile = "../../models/redLight.vox";
   playerGeometry;
-  camera;
   playerControls;
   originPosition = new Vector3(0, 0, 0);
   largeDistance = new Vector3(3000, 0, 0);
@@ -20,43 +20,29 @@ export class GameManager {
   orbitRadius = 400;
   orbitSpeed = 0.02;
 
-  bullets = [];
-  bulletSpeed = 0.2;
-
-  constructor(voxelManager, camera) {
+  constructor(voxelManager) {
     this.voxelManager = voxelManager;
-    this.camera = camera;
   }
 
-  startGame(camera) {
-    this.playerControls = new PlayerControls(camera);
-    this.#setupGame(camera);
-    this.#addShootingMechanism();
+  attachCamera(worldCamera) {
+    this.worldCamera = worldCamera;
   }
 
-  #addShootingMechanism() {
-    document.addEventListener("keydown", (event) => {
-      if (event.code === "Space") {
-        this.#shootBullet();
-      }
-    });
+  async startGame() {
+    await this.#setupGame();
   }
 
-  async #shootBullet() {
-    const bulletSize = 10;
-    const bulletPosition = this.playerGeometry.position
-      .clone()
-      .add(new Vector3(0, 0, -10));
+  async #setupGame() {
+    // Await setup of player geometry and orbiting lights together
+    this.playerGeometry = await this.#setupGeometry(); // Already returns a Promise
+    this.#setupOrbitingLights(); // Modify to return a Promise
+  }
 
-    await this.voxelManager.addGeometry(
-      this.sunFile,
-      bulletPosition,
-      bulletSize
+  setupPlayerControls() {
+    this.playerControls = new PlayerControls(
+      this.worldCamera,
+      this.playerGeometry
     );
-    // Store IDs for movement tracking.
-    let bulletGeomID =
-      Object.values(this.voxelManager.voxelGeometries).length - 1;
-    this.bullets.push(bulletGeomID);
   }
 
   handleAnimationFrame() {
@@ -67,57 +53,39 @@ export class GameManager {
       return;
     }
 
-    this.#updateOrbitingLights();
     this.voxelManager.setGeomRotation(0, "x", this.currentRotation);
     this.voxelManager.setGeomRotation(0, "y", this.currentRotation / 2);
     this.currentRotation += 0.1;
   }
 
-  async #setupGame(camera) {
-    this.playerGeometry = await this.#setupGeometry();
-    this.#cameraSetAndLookAt(this.playerGeometry.position);
-    this.#setupOrbitingLights();
-  }
-
-  #setupOrbitingLights() {
+  async #setupOrbitingLights() {
     const lightPositions = [
       { file: this.sunFile, distance: this.orbitRadius, color: "yellow" },
-      {
-        file: this.tealSunFile,
-        distance: this.orbitRadius * 0.75,
-        color: "teal",
-      },
-      { file: this.redSunFile, distance: this.orbitRadius * 0.5, color: "red" },
+      // Other lights...
     ];
 
-    lightPositions.forEach(async (light, index) => {
+    // Collect all light setup promises
+    const lightPromises = lightPositions.map(async (light, index) => {
       const position = new Vector3().setFromSphericalCoords(
         light.distance,
         Math.PI / 2,
         index * ((2 * Math.PI) / lightPositions.length)
       );
-      await this.voxelManager.addGeometry(light.file, position, 100);
-      this.orbitingLights.push({
-        geom: this.voxelManager.voxelGeometries[
-          this.voxelManager.totalVoxelGeometries - 1
-        ],
-        color: light.color,
-        radius: light.distance,
-        angle: index * ((2 * Math.PI) / lightPositions.length),
-      });
+      return this.voxelManager.addGeometry(light.file, position, 100);
     });
-  }
 
-  #updateOrbitingLights() {
-    this.orbitingLights.forEach((light) => {
-      light.angle += this.orbitSpeed;
-      const position = new Vector3().setFromSphericalCoords(
-        light.radius,
-        Math.PI / 2,
-        light.angle
-      );
-      light.geom.position.copy(position);
-    });
+    // Await all light setup operations to complete
+    await Promise.all(lightPromises);
+
+    // After all lights are added, setup orbitingLights array
+    this.orbitingLights = lightPositions.map((light, index) => ({
+      geom: this.voxelManager.voxelGeometries[
+        this.voxelManager.totalVoxelGeometries - 1 - index
+      ], // Adjust index if necessary
+      color: light.color,
+      radius: light.distance,
+      angle: index * ((2 * Math.PI) / lightPositions.length),
+    }));
   }
 
   async #setupGeometry() {
@@ -142,11 +110,5 @@ export class GameManager {
     await this.voxelManager.addGeometry(this.tealSunFile, this.distanceUp, 100);
 
     return this.voxelManager.voxelGeometries[0];
-  }
-
-  #cameraSetAndLookAt(position) {
-    // const offset = new Vector3(40, 10, 10); // Example offset
-    // this.camera.position.copy(position).add(offset);
-    this.camera.lookAt(position);
   }
 }

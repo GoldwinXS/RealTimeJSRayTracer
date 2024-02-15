@@ -7,10 +7,12 @@ export class FirstPersonCameraControls {
   PI_2 = Math.PI / 2;
   keyboardState = structuredClone(KeyboardState);
 
-  constructor(camera) {
-    this.camera = camera;
+  constructor(worldCamera) {
+    this.worldCamera = worldCamera;
+    this.cameraVectors = this.setupCameraVectors();
+
     this.pitchObject = new THREE.Object3D();
-    this.pitchObject.add(camera);
+    this.pitchObject.add(this.worldCamera);
 
     this.yawObject = new THREE.Object3D();
     this.yawObject.add(this.pitchObject);
@@ -25,42 +27,64 @@ export class FirstPersonCameraControls {
     this.enable();
   }
 
-  handleInput(camera, cameraIsMoving, cameraFlightSpeed, frameTime) {
-    this.#updateCameraVectors(camera);
+  setupCameraVectors() {
+    return {
+      directionVector: new THREE.Vector3(),
+      rightVector: new THREE.Vector3(),
+      upVector: new THREE.Vector3(),
+      worldQuaternion: new THREE.Quaternion(),
+    };
+  }
+
+  handleInput(cameraIsMoving, cameraFlightSpeed, frameTime) {
+    this.#updateCameraVectors(this.cameraVectors);
+
     let cameraControlsObject = this.currentControls.object;
     if (this.keyPressed("KeyW")) {
       cameraControlsObject.position.add(
-        camera.directionVector.multiplyScalar(cameraFlightSpeed * frameTime)
+        this.cameraVectors.directionVector.multiplyScalar(
+          cameraFlightSpeed * frameTime
+        )
       );
       cameraIsMoving = true;
     }
     if (this.keyPressed("KeyS") && !this.keyPressed("KeyW")) {
       cameraControlsObject.position.sub(
-        camera.directionVector.multiplyScalar(cameraFlightSpeed * frameTime)
+        this.cameraVectors.directionVector.multiplyScalar(
+          cameraFlightSpeed * frameTime
+        )
       );
       cameraIsMoving = true;
     }
     if (this.keyPressed("KeyA") && !this.keyPressed("KeyD")) {
       cameraControlsObject.position.sub(
-        camera.rightVector.multiplyScalar(cameraFlightSpeed * frameTime)
+        this.cameraVectors.rightVector.multiplyScalar(
+          cameraFlightSpeed * frameTime
+        )
       );
       cameraIsMoving = true;
     }
     if (this.keyPressed("KeyD") && !this.keyPressed("KeyA")) {
       cameraControlsObject.position.add(
-        camera.rightVector.multiplyScalar(cameraFlightSpeed * frameTime)
+        this.cameraVectors.rightVector.multiplyScalar(
+          cameraFlightSpeed * frameTime
+        )
       );
       cameraIsMoving = true;
     }
     if (this.keyPressed("KeyQ") && !this.keyPressed("KeyZ")) {
       cameraControlsObject.position.add(
-        camera.upVector.multiplyScalar(cameraFlightSpeed * frameTime)
+        this.cameraVectors.upVector.multiplyScalar(
+          cameraFlightSpeed * frameTime
+        )
       );
       cameraIsMoving = true;
     }
     if (this.keyPressed("KeyZ") && !this.keyPressed("KeyQ")) {
       cameraControlsObject.position.sub(
-        camera.upVector.multiplyScalar(cameraFlightSpeed * frameTime)
+        this.cameraVectors.upVector.multiplyScalar(
+          cameraFlightSpeed * frameTime
+        )
       );
       cameraIsMoving = true;
     }

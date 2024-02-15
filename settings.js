@@ -86,12 +86,6 @@ export const sceneSettings = {
   cameraFlightSpeed: 300,
   PI_2: Math.PI / 2,
   controls: null,
-  camera: {
-    directionVector: new THREE.Vector3(),
-    rightVector: new THREE.Vector3(),
-    upVector: new THREE.Vector3(),
-    worldQuaternion: new THREE.Quaternion(),
-  },
   textureLoader: new THREE.TextureLoader(),
   pixelEdgeSharpness: 1.0,
   edgeSharpenSpeed: 0.05,

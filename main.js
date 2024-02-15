@@ -54,11 +54,14 @@ function initSceneData(sceneSettings) {
   let hdrLoader = new RGBELoader();
   hdrLoader.type = THREE.FloatType; // override THREE's default of HalfFloatType
 
-  sceneSettings.controls = new FirstPersonCameraControls(
-    sceneSettings.worldCamera
-  );
+  // sceneSettings.controls = new FirstPersonCameraControls(
+  //   sceneSettings.worldCamera
+  // );
+  sceneSettings.gameManager.attachCamera(sceneSettings.worldCamera);
+  sceneSettings.gameManager.setupPlayerControls();
 
-  // sceneSettings.controls = sceneSettings.gameManager.playerControls;
+  // console.log(sceneSettings.gameManager.playerControls);
+  sceneSettings.controls = sceneSettings.gameManager.playerControls;
 
   // scene/demo-specific uniforms go here
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
@@ -171,7 +174,6 @@ function animate() {
     onWindowResize();
   }
   sceneSettings.isPaused = sceneSettings.controls.handleInput(
-    sceneSettings.camera,
     sceneSettings.cameraIsMoving,
     sceneSettings.cameraFlightSpeed,
     sceneSettings.frameTime
@@ -180,7 +182,7 @@ function animate() {
   // the following gives us a rotation quaternion (4D vector), which will be useful for
   // rotating scene objects to match the camera's rotation
   sceneSettings.worldCamera.getWorldQuaternion(
-    sceneSettings.camera.worldQuaternion
+    sceneSettings.controls.cameraVectors.worldQuaternion
   );
 
   // Update scene specific uniforms
@@ -349,11 +351,9 @@ async function loadFilesAndStart(sceneSettings) {
   defineSpecialColors(voxelManager);
 
   // Set up scene settings with the first geometry
-  sceneSettings.gameManager = new GameManager(
-    voxelManager,
-    sceneSettings.worldCamera
-  );
-  sceneSettings.gameManager.startGame(sceneSettings.worldCamera.position);
+  sceneSettings.gameManager = new GameManager(voxelManager);
+  await sceneSettings.gameManager.startGame();
+
   sceneSettings.voxels.voxelGeometry = voxelManager.voxelGeometries[0];
   sceneSettings.voxels.voxelManager = voxelManager;
   sceneSettings.isPaused = true;
