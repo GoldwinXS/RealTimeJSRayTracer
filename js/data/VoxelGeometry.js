@@ -198,8 +198,8 @@ export class VoxelGeometry {
     return { voxelData, size };
   }
 
-  setPosition(x, y, z) {
-    this.mesh.position.set(x, y, z);
+  setPosition(position) {
+    this.mesh.position.set(position.x, position.y, position.z);
     this.mesh.updateMatrixWorld(true);
   }
 

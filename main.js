@@ -173,6 +173,7 @@ function animate() {
   if (sceneSettings.needChangePixelResolution) {
     onWindowResize();
   }
+
   sceneSettings.isPaused = sceneSettings.controls.handleInput(
     sceneSettings.cameraIsMoving,
     sceneSettings.cameraFlightSpeed,

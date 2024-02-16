@@ -52,12 +52,12 @@ export class GameManager {
     if (!this.voxelManager.voxelGeometries[0]) {
       return;
     }
-
-    this.voxelManager.setGeomRotation(0, "x", this.currentRotation);
-    this.voxelManager.setGeomRotation(0, "y", this.currentRotation / 2);
-    this.currentRotation += 0.1;
+    this.playerControls.update();
+    this.voxelManager.setGeomPosition(
+      this.playerId,
+      this.playerGeometry.mesh.position
+    );
   }
-
   async #setupOrbitingLights() {
     const lightPositions = [
       { file: this.sunFile, distance: this.orbitRadius, color: "yellow" },
@@ -92,15 +92,13 @@ export class GameManager {
     // Add the player.
     await this.voxelManager.addGeometry(
       this.starshipFile,
-      this.originPosition,
+      this.shortDistance,
       1
     );
-    const playerId =
-      Object.values(this.voxelManager.voxelGeometries).length - 1;
-    this.voxelManager.setGeomRotation(playerId, "x", 90);
+    this.playerId = Object.values(this.voxelManager.voxelGeometries).length - 1;
+    this.voxelManager.setGeomRotation(this.playerId, "x", 90);
 
     // Add a lights
-
     await this.voxelManager.addGeometry(
       this.tealSunFile,
       this.distanceUp.multiplyScalar(-2),
@@ -109,6 +107,6 @@ export class GameManager {
 
     await this.voxelManager.addGeometry(this.tealSunFile, this.distanceUp, 100);
 
-    return this.voxelManager.voxelGeometries[0];
+    return this.voxelManager.voxelGeometries[this.playerId];
   }
 }

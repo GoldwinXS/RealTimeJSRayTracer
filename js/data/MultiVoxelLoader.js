@@ -71,7 +71,7 @@ export class VoxelGeometryManager {
   }
 
   setGeomPosition(id, position) {
-    this.voxelGeometries[id].setPosition(...position);
+    this.voxelGeometries[id].setPosition(position);
     this.#updateShaderTextureData();
   }
 

@@ -18,7 +18,7 @@ export class FirstPersonCameraControls {
     this.yawObject.add(this.pitchObject);
     this.isPaused = true;
 
-    this.boundOnMouseMove = this.#onMouseMove.bind(this);
+    this.boundOnMouseMove = this.onMouseMove.bind(this);
     this.boundOnKeyDown = this.onKeyDown.bind(this);
     this.boundOnKeyUp = this.onKeyUp.bind(this);
 
@@ -37,7 +37,7 @@ export class FirstPersonCameraControls {
   }
 
   handleInput(cameraIsMoving, cameraFlightSpeed, frameTime) {
-    this.#updateCameraVectors(this.cameraVectors);
+    this.updateCameraVectors();
 
     let cameraControlsObject = this.currentControls.object;
     if (this.keyPressed("KeyW")) {
@@ -103,6 +103,9 @@ export class FirstPersonCameraControls {
     document.removeEventListener("keyup", this.boundOnKeyUp, false);
   }
 
+  // Placeholder.
+  update() {}
+
   #addPointerLockEventListeners() {
     // Attach the pointerlockchange event listener
     document.addEventListener(
@@ -137,7 +140,7 @@ export class FirstPersonCameraControls {
     );
   }
 
-  #onMouseMove(event) {
+  onMouseMove(event) {
     if (window?.isPaused || window?.isUIActive) return;
     this.movementX = event.movementX || event.mozMovementX || 0;
     this.movementY = event.movementY || event.mozMovementY || 0;
@@ -187,14 +190,14 @@ export class FirstPersonCameraControls {
     return v;
   }
 
-  #updateCameraVectors(camera) {
-    this.#getDirection(camera.directionVector);
+  updateCameraVectors() {
+    this.#getDirection(this.cameraVectors.directionVector);
 
-    this.#getUpVector(camera.upVector);
-    this.#getRightVector(camera.rightVector);
-    camera.directionVector.normalize();
-    camera.upVector.normalize();
-    camera.rightVector.normalize();
+    this.#getUpVector(this.cameraVectors.upVector);
+    this.#getRightVector(this.cameraVectors.rightVector);
+    this.cameraVectors.directionVector.normalize();
+    this.cameraVectors.upVector.normalize();
+    this.cameraVectors.rightVector.normalize();
   }
 
   keyPressed(keyName) {
@@ -226,14 +229,14 @@ export class FirstPersonCameraControls {
       window.isPaused = false;
       document.addEventListener(
         "mousemove",
-        this.#onMouseMove.bind(this),
+        this.onMouseMove.bind(this),
         false
       );
     } else {
       window.isPaused = true;
       document.removeEventListener(
         "mousemove",
-        this.#onMouseMove.bind(this),
+        this.onMouseMove.bind(this),
         false
       );
     }
