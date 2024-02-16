@@ -57,10 +57,9 @@ function initSceneData(sceneSettings) {
   // sceneSettings.controls = new FirstPersonCameraControls(
   //   sceneSettings.worldCamera
   // );
+
   sceneSettings.gameManager.attachCamera(sceneSettings.worldCamera);
   sceneSettings.gameManager.setupPlayerControls();
-
-  // console.log(sceneSettings.gameManager.playerControls);
   sceneSettings.controls = sceneSettings.gameManager.playerControls;
 
   // scene/demo-specific uniforms go here

@@ -13,7 +13,7 @@ export class GameManager {
   largeDistance = new Vector3(3000, 0, 0);
   distanceUp = new Vector3(0, 100, 0);
   shortDistance = new Vector3(400, 0, 0);
-  veryShortDistance = new Vector3(30, 0, 0);
+  veryShortDistance = new Vector3(150, 0, 0);
   currentRotation = 0;
 
   orbitingLights = [];
@@ -46,17 +46,17 @@ export class GameManager {
   }
 
   handleAnimationFrame() {
-    if (!this.voxelManager) {
+    if (!this.voxelManager || !this.playerControls) {
       return;
     }
     if (!this.voxelManager.voxelGeometries[0]) {
       return;
     }
-    this.playerControls.update();
-    this.voxelManager.setGeomPosition(
-      this.playerId,
-      this.playerGeometry.mesh.position
-    );
+    // this.voxelManager.setGeomPosition(
+    //   this.playerId,
+    //   this.playerGeometry.mesh.position
+    // );
+    this.voxelManager.updateShaderTextureData();
   }
   async #setupOrbitingLights() {
     const lightPositions = [
@@ -92,11 +92,11 @@ export class GameManager {
     // Add the player.
     await this.voxelManager.addGeometry(
       this.starshipFile,
-      this.shortDistance,
+      this.veryShortDistance.multiplyScalar(-1),
       1
     );
     this.playerId = Object.values(this.voxelManager.voxelGeometries).length - 1;
-    this.voxelManager.setGeomRotation(this.playerId, "x", 90);
+    this.voxelManager.setGeomRotation(this.playerId, "y", 90);
 
     // Add a lights
     await this.voxelManager.addGeometry(

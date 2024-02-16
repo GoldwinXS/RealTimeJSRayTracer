@@ -72,12 +72,12 @@ export class VoxelGeometryManager {
 
   setGeomPosition(id, position) {
     this.voxelGeometries[id].setPosition(position);
-    this.#updateShaderTextureData();
+    this.updateShaderTextureData();
   }
 
-  setGeomRotation(id, axis, degrees) {
-    this.voxelGeometries[id].setRotation(axis, degrees);
-    this.#updateShaderTextureData();
+  setGeomRotation(id, input, degrees) {
+    this.voxelGeometries[id].setRotation(input, degrees);
+    this.updateShaderTextureData();
   }
 
   /**
@@ -93,10 +93,10 @@ export class VoxelGeometryManager {
       atlasData,
       this.maxTextureDimensions
     );
-    this.#updateShaderTextureData();
+    this.updateShaderTextureData();
   }
 
-  #updateShaderTextureData() {
+  updateShaderTextureData() {
     const { dataTexture, textureWidth } = this.#prepareShaderData(
       this.voxelGeometries
     );

@@ -39,55 +39,23 @@ export class FirstPersonCameraControls {
   handleInput(cameraIsMoving, cameraFlightSpeed, frameTime) {
     this.updateCameraVectors();
 
-    let cameraControlsObject = this.currentControls.object;
-    if (this.keyPressed("KeyW")) {
-      cameraControlsObject.position.add(
-        this.cameraVectors.directionVector.multiplyScalar(
-          cameraFlightSpeed * frameTime
-        )
-      );
-      cameraIsMoving = true;
-    }
-    if (this.keyPressed("KeyS") && !this.keyPressed("KeyW")) {
-      cameraControlsObject.position.sub(
-        this.cameraVectors.directionVector.multiplyScalar(
-          cameraFlightSpeed * frameTime
-        )
-      );
-      cameraIsMoving = true;
-    }
-    if (this.keyPressed("KeyA") && !this.keyPressed("KeyD")) {
-      cameraControlsObject.position.sub(
-        this.cameraVectors.rightVector.multiplyScalar(
-          cameraFlightSpeed * frameTime
-        )
-      );
-      cameraIsMoving = true;
-    }
-    if (this.keyPressed("KeyD") && !this.keyPressed("KeyA")) {
-      cameraControlsObject.position.add(
-        this.cameraVectors.rightVector.multiplyScalar(
-          cameraFlightSpeed * frameTime
-        )
-      );
-      cameraIsMoving = true;
-    }
-    if (this.keyPressed("KeyQ") && !this.keyPressed("KeyZ")) {
-      cameraControlsObject.position.add(
-        this.cameraVectors.upVector.multiplyScalar(
-          cameraFlightSpeed * frameTime
-        )
-      );
-      cameraIsMoving = true;
-    }
-    if (this.keyPressed("KeyZ") && !this.keyPressed("KeyQ")) {
-      cameraControlsObject.position.sub(
-        this.cameraVectors.upVector.multiplyScalar(
-          cameraFlightSpeed * frameTime
-        )
-      );
-      cameraIsMoving = true;
-    }
+    // Define movement directions based on keyboard input
+    const movementDirections = {
+      KeyW: { vector: this.cameraVectors.directionVector, multiplier: 1 },
+      KeyS: { vector: this.cameraVectors.directionVector, multiplier: -1 },
+      KeyA: { vector: this.cameraVectors.rightVector, multiplier: -1 },
+      KeyD: { vector: this.cameraVectors.rightVector, multiplier: 1 },
+      KeyQ: { vector: this.cameraVectors.upVector, multiplier: 1 },
+      KeyZ: { vector: this.cameraVectors.upVector, multiplier: -1 },
+    };
+
+    // Iterate over each movement direction and apply it if its corresponding key is pressed
+    cameraIsMoving = this.updateCameraPosition(
+      movementDirections,
+      cameraFlightSpeed,
+      frameTime
+    );
+
     return cameraIsMoving;
   }
 
@@ -103,8 +71,24 @@ export class FirstPersonCameraControls {
     document.removeEventListener("keyup", this.boundOnKeyUp, false);
   }
 
-  // Placeholder.
-  update() {}
+  updateCameraPosition(movementDirections, cameraFlightSpeed, frameTime) {
+    let cameraIsMoving = false;
+    // Iterate over each movement direction and apply it if its corresponding key is pressed
+    Object.entries(movementDirections).forEach(
+      ([key, { vector, multiplier }]) => {
+        if (this.keyPressed(key)) {
+          // Calculate movement vector
+          const movement = vector
+            .clone()
+            .multiplyScalar(cameraFlightSpeed * frameTime * multiplier);
+          // Apply movement
+          this.currentControls.object.position.add(movement);
+          cameraIsMoving = true;
+        }
+        return cameraIsMoving;
+      }
+    );
+  }
 
   #addPointerLockEventListeners() {
     // Attach the pointerlockchange event listener
@@ -192,7 +176,6 @@ export class FirstPersonCameraControls {
 
   updateCameraVectors() {
     this.#getDirection(this.cameraVectors.directionVector);
-
     this.#getUpVector(this.cameraVectors.upVector);
     this.#getRightVector(this.cameraVectors.rightVector);
     this.cameraVectors.directionVector.normalize();

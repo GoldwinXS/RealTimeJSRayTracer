@@ -203,9 +203,17 @@ export class VoxelGeometry {
     this.mesh.updateMatrixWorld(true);
   }
 
-  setRotation(axis, degrees) {
-    const radians = degrees * (Math.PI / 180);
-    this.mesh.rotation[axis] = radians;
+  setRotation(input, degrees) {
+    if (typeof input === "string" && typeof degrees === "number") {
+      // Assuming input is an axis ('x', 'y', or 'z') and degrees is the rotation amount
+      const radians = degrees * (Math.PI / 180);
+      this.mesh.rotation[input] = radians;
+    } else if (input instanceof THREE.Euler) {
+      // Assuming input is a THREE.Vector3 object representing rotation in radians
+      this.mesh.rotation.set(input.x, input.y, input.z);
+    } else {
+      console.error("Invalid input for setRotation");
+    }
     this.mesh.updateMatrixWorld(true);
   }
 
@@ -214,6 +222,9 @@ export class VoxelGeometry {
    * @returns {Float32Array} - Data needed for shader structs.
    */
   toFloatArray() {
+    // Ensure we update the mesh coordinates.
+    this.mesh.updateMatrixWorld(true);
+
     // Create an array of 26 floats for use in the shader.
     const invMatrix = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
     const matrixElements = invMatrix.elements;
