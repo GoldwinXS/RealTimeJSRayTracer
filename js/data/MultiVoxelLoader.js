@@ -32,7 +32,7 @@ import { VoxelGeometry, calculateIndex } from "./VoxelGeometry";
  */
 export class VoxelGeometryManager {
   // TODO: Calculate max size from user device.
-  maxTextureDimensions = new THREE.Vector3(512, 512, 512);
+  maxTextureDimensions = new THREE.Vector3(128, 128, 128);
   voxelGeometries = {};
   voxelData = [];
   lights = {};
@@ -55,6 +55,7 @@ export class VoxelGeometryManager {
   async addGeometry(filepath, position, voxelSize) {
     const geom = await VoxelGeometry.create(filepath, position, voxelSize);
     this.voxelGeometries[this.currentVoxelIndex] = geom;
+    geom.id = this.currentVoxelIndex;
     this.currentVoxelIndex++;
     this.totalVoxelGeometries++;
     await this.#update();
@@ -182,14 +183,16 @@ export class VoxelGeometryManager {
     this.lights = {};
     this.totalLights = 0;
     const geometriesArray = Object.values(packedGeometries);
+
     const totalSize =
       this.maxTextureDimensions.x *
       this.maxTextureDimensions.y *
       this.maxTextureDimensions.z;
     const atlasData = new Uint8Array(totalSize * 4); // 4 for RGBA
 
-    geometriesArray.forEach((geometry) => {
+    geometriesArray.forEach((geometry, index) => {
       const size = geometry.gridDimensions;
+
       for (let z = 0; z < size.z; z++) {
         for (let y = 0; y < size.y; y++) {
           for (let x = 0; x < size.x; x++) {
@@ -224,6 +227,7 @@ export class VoxelGeometryManager {
             ) {
               // Encode the special color int othe alpha channel.
               atlasData[atlasIndex + 3] = this.specialColors[colorKey];
+
               // If we encounter a light, add it to lights to keep track of them for importance sampling.
               if (this.specialColors[colorKey] == 20) {
                 // Calculate the local position of the light relative to the model.
@@ -232,6 +236,7 @@ export class VoxelGeometryManager {
                   geometry.position.y - y,
                   geometry.position.z - z
                 );
+
                 this.#handleLight(localPosition, color, geometry);
               }
             }

@@ -11,7 +11,7 @@ import { TextField, Button } from "@mui/material";
 const ControlPanel = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [filePath, setFilePath] = useState("models/MicroRecon.vox");
+  const [filePath, setFilePath] = useState("models/redLight.vox");
   const [position, setPosition] = useState({ x: 0, y: 10, z: 0 });
   const [size, setSize] = useState(1);
   const [spawnObjectManager, setSpawnObjectManager] = useState();

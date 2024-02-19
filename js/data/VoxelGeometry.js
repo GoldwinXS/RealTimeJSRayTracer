@@ -55,6 +55,8 @@ export class VoxelGeometry {
   texture;
   material;
   shaderData;
+  id;
+
   constructor(filepath, position = new THREE.Vector3(0, 0, 0), voxelSize = 1) {
     this.filePath = filepath;
     this.position = position;
@@ -225,24 +227,61 @@ export class VoxelGeometry {
     // Ensure we update the mesh coordinates.
     this.mesh.updateMatrixWorld(true);
 
-    // Create an array of 26 floats for use in the shader.
+    // Invert the world matrix to get the inverse matrix for the shader.
     const invMatrix = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
     const matrixElements = invMatrix.elements;
+
+    // Validate that all necessary properties are present and correct
+    // You could add more validation as needed
+    if (
+      !this.voxelSize ||
+      !this.gridDimensions ||
+      !this.textureMinPositionNormalized ||
+      !this.textureMaxPositionNormalized
+    ) {
+      console.error(
+        "VoxelGeometry.toFloatArray: Missing or invalid properties."
+      );
+      return null; // Or handle this case as appropriate for your application
+    }
+
+    // Ensure the array length matches the shader's expectation, including the matrix
+    // 10 initial values + 2 padding + 16 for the matrix = 28 floats total
     return new Float32Array([
+      // 0-4
       this.voxelSize,
       this.gridDimensions.x,
       this.gridDimensions.y,
       this.gridDimensions.z,
+      // 4-8
       this.textureMinPositionNormalized.x,
       this.textureMinPositionNormalized.y,
       this.textureMinPositionNormalized.z,
       this.textureMaxPositionNormalized.x,
+      // 8-12
       this.textureMaxPositionNormalized.y,
       this.textureMaxPositionNormalized.z,
       // Padding for easier parsing in the shader
-      0,
-      0,
-      ...matrixElements,
+      0.0,
+      0.0,
+      //
+      // Explicitly set matrix elements to ensure correct order and count
+      matrixElements[0],
+      matrixElements[1],
+      matrixElements[2],
+      matrixElements[3],
+      matrixElements[4],
+      matrixElements[5],
+      matrixElements[6],
+      matrixElements[7],
+      matrixElements[8],
+      matrixElements[9],
+      matrixElements[10],
+      matrixElements[11],
+      matrixElements[12],
+      matrixElements[13],
+      matrixElements[14],
+      matrixElements[15],
     ]);
   }
 }

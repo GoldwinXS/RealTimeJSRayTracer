@@ -7,8 +7,18 @@ export class PlayerControls extends FirstPersonCameraControls {
     this.ship = ship; // The ship object the camera should always look at
     this.distance = new THREE.Vector3()
       .subVectors(this.worldCamera.position, this.ship.position)
-      .length(); // Distance from ship to maintain
+      .length();
     this.boundOnMouseMove = this.onMouseMove.bind(this);
+    this.firing = false;
+    this.shotsFired = 0;
+    this.shotsSpawned = 0;
+    this.blasterIndex = 0;
+  }
+
+  getBlasterIndex() {
+    this.blasterIndex = this.shotsFired % 4;
+    this.firing = false;
+    return this.blasterIndex;
   }
 
   onMouseMove(event) {
@@ -17,90 +27,78 @@ export class PlayerControls extends FirstPersonCameraControls {
     this.movementX = event.movementX || event.mozMovementX || 0;
     this.movementY = event.movementY || event.mozMovementY || 0;
 
-    // Update camera rotation based on mouse movement
-    this.yawObject.rotation.y -=
-      this.movementX * 0.0012 * this.cameraRotationSpeed;
-    this.pitchObject.rotation.x -=
-      this.movementY * 0.001 * this.cameraRotationSpeed;
-    this.pitchObject.rotation.x = Math.max(
-      -this.PI_2,
-      Math.min(this.PI_2, this.pitchObject.rotation.x)
-    );
+    let yRotation = this.movementX * 0.0012 * this.cameraRotationSpeed;
+    let xRotation = this.movementY * 0.001 * this.cameraRotationSpeed;
 
-    // Calculate the new camera position to maintain a constant distance from the ship
-    const sphericalCoords = new THREE.Spherical(
-      this.distance,
-      this.pitchObject.rotation.x,
-      this.yawObject.rotation.y
-    );
-    const newPosition = new THREE.Vector3()
-      .setFromSpherical(sphericalCoords)
-      .add(this.ship.mesh.position);
-
-    // Update the camera's position
-    this.worldCamera.position.copy(newPosition);
-
-    // Ensure the camera looks at the ship
-    this.worldCamera.lookAt(this.ship.mesh.position);
-
-    // Match the ship's rotation to the camera's rotation
-    // This approach directly uses the yaw (Y) and pitch (X) without a roll (Z) component.
-    // It assumes the ship's up vector aligns with the world's Y-axis.
-    const shipRotation = new THREE.Euler(
-      this.pitchObject.rotation.x,
-      this.yawObject.rotation.y,
-      0,
-      "YXZ"
-    );
-    this.ship.mesh.rotation.copy(shipRotation);
+    // Apply rotations to the ship based on mouse movement
+    this.ship.mesh.rotation.x -= yRotation;
+    this.ship.mesh.rotation.y -= xRotation;
+    this.worldCamera.rotation.z = this.ship.mesh.rotation.z;
   }
 
-  updateCameraPosition(movementDirections, cameraFlightSpeed, frameTime) {
-    let cameraIsMoving = false;
-    let movement = new THREE.Vector3();
-    // Iterate over each movement direction and apply it if its corresponding key is pressed
+  getShipVectors() {
+    // Calculate the ship's forward and right (lateral) vectors
+    let forwardVector = new THREE.Vector3(1, 0, 0);
+    forwardVector.applyQuaternion(this.ship.mesh.quaternion);
+    forwardVector.negate(); // Only if necessary, depending on orientation
+    let rightVector = new THREE.Vector3();
+    rightVector.crossVectors(this.ship.mesh.up, forwardVector).normalize(); // Recalculate right vector
+    let upVector = new THREE.Vector3();
+    upVector.crossVectors(rightVector, forwardVector).normalize();
+    return { forwardVector, rightVector, upVector };
+  }
+
+  handleInput(cameraIsMoving, cameraFlightSpeed, frameTime) {
+    const { forwardVector, rightVector, upVector } = this.getShipVectors();
+    const movementDirections = {
+      KeyW: { vector: forwardVector, multiplier: 1 },
+      KeyS: { vector: forwardVector, multiplier: -1 },
+      KeyA: { vector: rightVector, multiplier: -1 },
+      KeyD: { vector: upVector, multiplier: -1 },
+      ShiftLeft: { vector: rightVector, multiplier: 1 },
+      ControlLeft: { vector: upVector, multiplier: 1 },
+    };
+
+    // Move.
     Object.entries(movementDirections).forEach(
       ([key, { vector, multiplier }]) => {
         if (this.keyPressed(key)) {
-          // Calculate movement vector for the current direction and add it to the total movement
-          const directionMovement = vector
+          // Apply movement
+          const movement = vector
             .clone()
-            .multiplyScalar(cameraFlightSpeed * frameTime * multiplier);
-          movement.add(directionMovement); // Add the movement from this direction to the total movement
+            .multiplyScalar(multiplier * cameraFlightSpeed * frameTime);
+          this.ship.mesh.position.add(movement);
           cameraIsMoving = true;
         }
       }
     );
 
-    // After the loop, apply the total movement to the camera's position
-    if (cameraIsMoving) {
-      this.currentControls.object.position.add(movement);
-      this.ship.mesh.position.add(movement);
+    if (this.keyPressed("Space")) {
+      this.shotsFired++;
+      this.firing = true;
     }
 
-    // Return the result outside the loop
-    return cameraIsMoving;
-  }
+    // Roll
+    let rollSpeed = 3;
+    if (this.keyPressed("KeyQ")) {
+      this.ship.mesh.rotation.x += rollSpeed * frameTime;
+      cameraIsMoving = true;
+    } else if (this.keyPressed("KeyE")) {
+      this.ship.mesh.rotation.x -= rollSpeed * frameTime;
+      cameraIsMoving = true;
+    }
 
-  handleInput(cameraIsMoving, cameraFlightSpeed, frameTime) {
-    this.updateCameraVectors();
-    // Directly modify the ship's position based on keyboard input
-    const movementDirections = {
-      KeyW: { vector: this.cameraVectors.rightVector, multiplier: -1 },
-      KeyS: { vector: this.cameraVectors.rightVector, multiplier: 1 },
-      KeyA: { vector: this.cameraVectors.upVector, multiplier: -1 },
-      KeyD: { vector: this.cameraVectors.upVector, multiplier: 1 },
-      KeyQ: { vector: this.cameraVectors.directionVector, multiplier: -1 },
-      KeyZ: { vector: this.cameraVectors.directionVector, multiplier: 1 },
-    };
-
-    // Iterate over each movement direction and apply it if its corresponding key is pressed
-    cameraIsMoving = this.updateCameraPosition(
-      movementDirections,
-      cameraFlightSpeed,
-      frameTime
+    // Position camera.
+    let offset = new THREE.Vector3(this.distance, 0, 30); // Start with the offset directly behind the ship
+    offset.applyQuaternion(this.ship.mesh.quaternion); // Apply the ship's rotation to the offset
+    let cameraPosition = new THREE.Vector3().addVectors(
+      this.ship.mesh.position,
+      offset
     );
-
+    this.worldCamera.position.copy(cameraPosition);
+    // this.worldCamera.rotation.z = this.ship.mesh.rotation.z;
+    this.worldCamera.quaternion.copy(this.ship.mesh.quaternion.clone());
+    this.worldCamera.lookAt(this.ship.mesh.position);
     return cameraIsMoving;
   }
 }

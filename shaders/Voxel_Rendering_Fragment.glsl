@@ -15,8 +15,8 @@ uniform sampler2D uVoxelLightTexture;
 uniform int uNumberOfVoxelLights;
 uniform float uVoxelLightTextureSize;
 
-vec3 emission = vec3(0);
-vec3 yellowLightColor = vec3(1.0, 0.8, 0.2) * 20.0;
+vec3 emission = vec3(1);
+vec3 yellowLightColor = vec3(1.0, 0.8, 0.2) * 2.0;
 
 struct VoxelGeometry {
 	mat4 voxelMeshInvMatrix;
@@ -31,6 +31,7 @@ VoxelGeometry getVoxelGeometry(int voxelIndex) {
 	float floatPerVoxel = 28.0; // Total number of floats per voxel
 	float floatsPerTexel = 4.0; // 4 floats per RGBA pixel
 	float texelIndex = float(voxelIndex) * floatPerVoxel / floatsPerTexel;
+	texelIndex = texelIndex * 1.01;
 	float row = 0.0;
 
 	VoxelGeometry voxel;
@@ -38,19 +39,27 @@ VoxelGeometry getVoxelGeometry(int voxelIndex) {
 
     // Read voxel data
 	temp = texture2D(uVoxelDataTexture, vec2(texelIndex / uVoxelDataTextureWidth, row));
-	voxel.voxelSize = temp.r;
-	voxel.gridDimensions = temp.gba;
+
+	// Voxel size.
+	voxel.voxelSize = temp.r; 
+
+	// Voxel grid dimensions.
+	voxel.gridDimensions = temp.rgb;
 	temp = texture2D(uVoxelDataTexture, vec2((texelIndex + 1.0) / uVoxelDataTextureWidth, row));
+
+	// textureMinPositionNormalized
 	voxel.textureMinPosition = temp.rgb;
+
+	// textureMaxPositionNormalized
 	voxel.textureMaxPosition.x = temp.a;
 	temp = texture2D(uVoxelDataTexture, vec2((texelIndex + 2.0) / uVoxelDataTextureWidth, row));
 	voxel.textureMaxPosition.yz = temp.rg;
 
-// Read and reconstruct the matrix
-	for(int i = 0; i < 4; i++) {
-		temp = texture2D(uVoxelDataTexture, vec2((texelIndex + 3.0 + float(i)) / uVoxelDataTextureWidth, row));
-		voxel.voxelMeshInvMatrix[i] = vec4(temp.rgb, texture2D(uVoxelDataTexture, vec2((texelIndex + 4.0 + float(i)) / uVoxelDataTextureWidth, row)).r);
-	}
+	// Read and reconstruct the matrix directly without a loop
+	voxel.voxelMeshInvMatrix[0] = texture2D(uVoxelDataTexture, vec2((texelIndex + 3.0) / uVoxelDataTextureWidth, row));
+	voxel.voxelMeshInvMatrix[1] = texture2D(uVoxelDataTexture, vec2((texelIndex + 4.0) / uVoxelDataTextureWidth, row));
+	voxel.voxelMeshInvMatrix[2] = texture2D(uVoxelDataTexture, vec2((texelIndex + 5.0) / uVoxelDataTextureWidth, row));
+	voxel.voxelMeshInvMatrix[3] = texture2D(uVoxelDataTexture, vec2((texelIndex + 6.0) / uVoxelDataTextureWidth, row));
 
 	return voxel;
 }

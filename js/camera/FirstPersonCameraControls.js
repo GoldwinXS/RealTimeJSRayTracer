@@ -36,6 +36,15 @@ export class FirstPersonCameraControls {
     };
   }
 
+  updateCameraVectors() {
+    this.#getDirection(this.cameraVectors.directionVector);
+    this.#getUpVector(this.cameraVectors.upVector);
+    this.#getRightVector(this.cameraVectors.rightVector);
+    this.cameraVectors.directionVector.normalize();
+    this.cameraVectors.upVector.normalize();
+    this.cameraVectors.rightVector.normalize();
+  }
+
   handleInput(cameraIsMoving, cameraFlightSpeed, frameTime) {
     this.updateCameraVectors();
 
@@ -90,6 +99,22 @@ export class FirstPersonCameraControls {
     );
   }
 
+  onMouseMove(event) {
+    if (window?.isPaused || window?.isUIActive) return;
+    this.movementX = event.movementX || event.mozMovementX || 0;
+    this.movementY = event.movementY || event.mozMovementY || 0;
+
+    this.yawObject.rotation.y -=
+      this.movementX * 0.0012 * this.cameraRotationSpeed;
+    this.pitchObject.rotation.x -=
+      this.movementY * 0.001 * this.cameraRotationSpeed;
+    // clamp the camera's vertical movement (around the x-axis) to the scene's 'ceiling' and 'floor'
+    this.pitchObject.rotation.x = Math.max(
+      -this.PI_2,
+      Math.min(this.PI_2, this.pitchObject.rotation.x)
+    );
+  }
+
   #addPointerLockEventListeners() {
     // Attach the pointerlockchange event listener
     document.addEventListener(
@@ -121,22 +146,6 @@ export class FirstPersonCameraControls {
       "click",
       enablePointerLock.bind(this),
       false
-    );
-  }
-
-  onMouseMove(event) {
-    if (window?.isPaused || window?.isUIActive) return;
-    this.movementX = event.movementX || event.mozMovementX || 0;
-    this.movementY = event.movementY || event.mozMovementY || 0;
-
-    this.yawObject.rotation.y -=
-      this.movementX * 0.0012 * this.cameraRotationSpeed;
-    this.pitchObject.rotation.x -=
-      this.movementY * 0.001 * this.cameraRotationSpeed;
-    // clamp the camera's vertical movement (around the x-axis) to the scene's 'ceiling' and 'floor'
-    this.pitchObject.rotation.x = Math.max(
-      -this.PI_2,
-      Math.min(this.PI_2, this.pitchObject.rotation.x)
     );
   }
 
@@ -172,15 +181,6 @@ export class FirstPersonCameraControls {
     const te = this.pitchObject.matrixWorld.elements;
     v.set(te[0], te[1], te[2]);
     return v;
-  }
-
-  updateCameraVectors() {
-    this.#getDirection(this.cameraVectors.directionVector);
-    this.#getUpVector(this.cameraVectors.upVector);
-    this.#getRightVector(this.cameraVectors.rightVector);
-    this.cameraVectors.directionVector.normalize();
-    this.cameraVectors.upVector.normalize();
-    this.cameraVectors.rightVector.normalize();
   }
 
   keyPressed(keyName) {
