@@ -36,7 +36,7 @@ export class GameManager {
   async #setupGame() {
     this.playerGeometry = await this.#setupGeometry();
     // this.playerGeometry = await this.#setupTestGeometry();
-    this.#setupOrbitingLights();
+    // this.#setupOrbitingLights();
   }
 
   setupPlayerControls() {
@@ -46,11 +46,11 @@ export class GameManager {
     );
   }
 
-  spawnBullet() {
+  async spawnBullet() {
     const blaster = this.playerControls.getBlasterIndex();
     const blasterOffset = new Vector3(51, 2, 38);
     const { forwardVector } = this.playerControls.getShipVectors();
-    this.voxelManager.addGeometry(
+    const bulletId = await this.voxelManager.addGeometry(
       this.sunFile,
       new Vector3(
         this.playerGeometry.mesh.position.x + blasterOffset.x,
@@ -60,15 +60,8 @@ export class GameManager {
       5
     );
 
-    // Create a new Vector3 instance for the bullet's position
-    const bulletPosition = new Vector3(
-      this.playerGeometry.mesh.position.x,
-      this.playerGeometry.mesh.position.y,
-      this.playerGeometry.mesh.position.z
-    );
-
-    const bulletId = this.voxelManager.totalVoxelGeometries - 1;
     let moveCounter = 0;
+    const bulletPosition = this.voxelManager.voxelGeometries[bulletId].position;
     this.bullets[bulletId] = {
       forwardVector,
       bulletPosition,
@@ -112,69 +105,6 @@ export class GameManager {
     // Call for an update.
     this.voxelManager.updateShaderTextureData();
   }
-  async #setupOrbitingLights() {
-    const lightPositions = [
-      // { file: this.sunFile, distance: this.orbitRadius, color: "yellow" },
-      // { file: this.sunFile, distance: this.orbitRadius, color: "yellow" },
-      { file: this.sunFile, distance: this.orbitRadius, color: "red" },
-    ];
-
-    // Collect all light setup promises
-    const lightPromises = lightPositions.map(async (light, index) => {
-      const position = new Vector3().setFromSphericalCoords(
-        light.distance,
-        Math.PI / 2,
-        index * ((2 * Math.PI) / lightPositions.length)
-      );
-      return this.voxelManager.addGeometry(light.file, position, 100);
-    });
-
-    // Await all light setup operations to complete
-    await Promise.all(lightPromises);
-
-    // After all lights are added, setup orbitingLights array
-    this.orbitingLights = lightPositions.map((light, index) => ({
-      geom: this.voxelManager.voxelGeometries[
-        this.voxelManager.totalVoxelGeometries - 1 - index
-      ], // Adjust index if necessary
-      color: light.color,
-      radius: light.distance,
-      angle: index * ((2 * Math.PI) / lightPositions.length),
-    }));
-  }
-
-  async #setupTestGeometry() {
-    await this.voxelManager.addGeometry(
-      "../../models/singleVoxelLight.vox",
-      new Vector3(0, 0, 1),
-      1
-    );
-    await this.voxelManager.addGeometry(
-      "../../models/redLight.vox",
-      new Vector3(0, 0, 2),
-      1
-    );
-    await this.voxelManager.addGeometry(
-      "../../models/tealLight.vox",
-      new Vector3(0, 0, 3),
-      1
-    );
-    await this.voxelManager.addGeometry(
-      "../../models/singleVoxelLight.vox",
-      new Vector3(0, 0, 4),
-      1
-    );
-    await this.voxelManager.addGeometry(
-      "../../models/redLight.vox",
-      new Vector3(0, 0, 5),
-      1
-    );
-    await this.voxelManager.addGeometry(
-      "../../models/tealLight.vox",
-      new Vector3(0, 0, 6),
-      1
-    );
-  }
 
   async #setupGeometry() {
     // Add the player.
@@ -188,21 +118,9 @@ export class GameManager {
 
     // Add a lights
     await this.voxelManager.addGeometry(
-      this.tealSunFile,
-      this.distanceUp.multiplyScalar(-2),
-      200
-    );
-
-    await this.voxelManager.addGeometry(
-      this.redSunFile,
-      this.distanceUp.multiplyScalar(-4),
-      200
-    );
-
-    await this.voxelManager.addGeometry(
-      this.redSunFile,
-      this.shortDistance.multiplyScalar(-7),
-      200
+      this.sunFile,
+      new Vector3(0, 100000, 0),
+      50000
     );
 
     await this.voxelManager.addGeometry(
@@ -211,27 +129,8 @@ export class GameManager {
       1
     );
 
-    await this.voxelManager.addGeometry(
-      this.tieFile,
-      new Vector3(100, 200, 300),
-      1
-    );
+    // await this.voxelManager.addGeometry(this.tealSunFile, this.distanceUp, 100);
 
-    await this.voxelManager.addGeometry(
-      this.tieFile,
-      new Vector3(100, 300, 300),
-      1
-    );
-
-    await this.voxelManager.addGeometry(
-      "../../models/enterprise.vox",
-      new Vector3(100, 500, 300),
-      1
-    );
-
-    await this.voxelManager.addGeometry(this.tealSunFile, this.distanceUp, 100);
-    this.voxelManager.setGeomRotation(1, "z", 45);
-    this.voxelManager.setGeomRotation(2, "y", 45);
     return this.voxelManager.voxelGeometries[this.playerId];
   }
 }

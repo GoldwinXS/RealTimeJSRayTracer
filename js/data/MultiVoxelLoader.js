@@ -54,11 +54,13 @@ export class VoxelGeometryManager {
    */
   async addGeometry(filepath, position, voxelSize) {
     const geom = await VoxelGeometry.create(filepath, position, voxelSize);
-    this.voxelGeometries[this.currentVoxelIndex] = geom;
+    const currentId = this.currentVoxelIndex;
+    this.voxelGeometries[currentId] = geom;
     geom.id = this.currentVoxelIndex;
     this.currentVoxelIndex++;
     this.totalVoxelGeometries++;
     await this.#update();
+    return currentId;
   }
 
   /**

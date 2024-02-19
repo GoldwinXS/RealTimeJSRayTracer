@@ -54,13 +54,13 @@ function initSceneData(sceneSettings) {
   let hdrLoader = new RGBELoader();
   hdrLoader.type = THREE.FloatType; // override THREE's default of HalfFloatType
 
-  sceneSettings.controls = new FirstPersonCameraControls(
-    sceneSettings.worldCamera
-  );
+  // sceneSettings.controls = new FirstPersonCameraControls(
+  //   sceneSettings.worldCamera
+  // );
 
-  // sceneSettings.gameManager.attachCamera(sceneSettings.worldCamera);
-  // sceneSettings.gameManager.setupPlayerControls();
-  // sceneSettings.controls = sceneSettings.gameManager.playerControls;
+  sceneSettings.gameManager.attachCamera(sceneSettings.worldCamera);
+  sceneSettings.gameManager.setupPlayerControls();
+  sceneSettings.controls = sceneSettings.gameManager.playerControls;
 
   // scene/demo-specific uniforms go here
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;

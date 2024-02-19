@@ -44,7 +44,7 @@ VoxelGeometry getVoxelGeometry(int voxelIndex) {
 	voxel.voxelSize = temp.r; 
 
 	// Voxel grid dimensions.
-	voxel.gridDimensions = temp.rgb;
+	voxel.gridDimensions = temp.gba;
 	temp = texture2D(uVoxelDataTexture, vec2((texelIndex + 1.0) / uVoxelDataTextureWidth, row));
 
 	// textureMinPositionNormalized
