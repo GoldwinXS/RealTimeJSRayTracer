@@ -7,6 +7,8 @@ export class GameManager {
   tealSunFile = "../../models/tealLight.vox";
   redSunFile = "../../models/redLight.vox";
   tieFile = "../../models/tie.vox";
+  deathStarChunk = "../../models/deathStarChunk.vox";
+  BlasterBoltFile = "../../models/blasterBolt.vox";
   playerGeometry;
   playerControls;
   originPosition = new Vector3(0, 0, 0);
@@ -47,17 +49,13 @@ export class GameManager {
   }
 
   async spawnBullet() {
-    const blaster = this.playerControls.getBlasterIndex();
-    const blasterOffset = new Vector3(51, 2, 38);
     const { forwardVector } = this.playerControls.getShipVectors();
+    this.playerControls.firing = false;
+
     const bulletId = await this.voxelManager.addGeometry(
-      this.sunFile,
-      new Vector3(
-        this.playerGeometry.mesh.position.x + blasterOffset.x,
-        this.playerGeometry.mesh.position.y + blasterOffset.y,
-        this.playerGeometry.mesh.position.z + blasterOffset.z
-      ),
-      5
+      this.BlasterBoltFile,
+      new Vector3().copy(this.playerGeometry.mesh.position),
+      1
     );
 
     let moveCounter = 0;
@@ -67,14 +65,16 @@ export class GameManager {
       bulletPosition,
       moveCounter,
     };
-    this.playerControls.firing = false;
   }
 
   moveBullet() {
     Object.entries(this.bullets).forEach(([bulletId, bullet]) => {
-      bullet.bulletPosition.x += bullet.forwardVector.x;
-      bullet.bulletPosition.y += bullet.forwardVector.y;
-      bullet.bulletPosition.z += bullet.forwardVector.z;
+      const bulletMovement = new Vector3().copy(
+        bullet.forwardVector.multiplyScalar(2)
+      );
+      bullet.bulletPosition.x += bulletMovement.x;
+      bullet.bulletPosition.y += bulletMovement.y;
+      bullet.bulletPosition.z += bulletMovement.z;
       if (bulletId in this.voxelManager.voxelGeometries) {
         this.voxelManager.setGeomPosition(bulletId, bullet.bulletPosition);
       }
@@ -106,6 +106,52 @@ export class GameManager {
     this.voxelManager.updateShaderTextureData();
   }
 
+  async setupTrench() {
+    const trenchLength = 1; // Define the length of the trench
+    const trenchScale = 100; // Scaling factor for each chunk
+    const scaledSize = 40 * trenchScale; // Calculate the scaled size of each chunk
+
+    // Define the width of the open space in the trench for flying
+    const openSpaceWidth = 20 * trenchScale;
+
+    // Calculate positions for the left and right walls
+    const wallLeftX = -openSpaceWidth / 2 - scaledSize / 2;
+    const wallRightX = openSpaceWidth / 2 + scaledSize / 2;
+
+    // Loop to arrange the geometries along the length of the trench
+    for (let i = 0; i < trenchLength; i++) {
+      let positionZ = i * scaledSize; // Position for each chunk along the Z-axis
+
+      // Add geometry for the left wall
+      await this.voxelManager.addGeometry(
+        this.deathStarChunk,
+        new Vector3(wallLeftX, -100, positionZ),
+        trenchScale
+      );
+
+      // Add geometry for the right wall
+      await this.voxelManager.addGeometry(
+        this.deathStarChunk,
+        new Vector3(wallRightX, -100, positionZ),
+        trenchScale
+      );
+
+      // Add floor segments across the width of the trench
+      const floorY = -scaledSize / 2 - 100; // Assuming you want the floor at the base level of the walls
+      // Correct calculation for the number of floor segments needed to cover the open space width
+      const numFloorSegments = Math.ceil(openSpaceWidth / scaledSize);
+      for (let j = 0; j < numFloorSegments; j++) {
+        // Correctly calculate floorX to start from the edge of the left wall
+        let floorX = wallLeftX + j * scaledSize + scaledSize / 2; // Start placing floor segments right after the left wall
+        await this.voxelManager.addGeometry(
+          this.deathStarChunk,
+          new Vector3(floorX, floorY, positionZ),
+          trenchScale
+        );
+      }
+    }
+  }
+
   async #setupGeometry() {
     // Add the player.
     await this.voxelManager.addGeometry(
@@ -130,6 +176,7 @@ export class GameManager {
     );
 
     // await this.voxelManager.addGeometry(this.tealSunFile, this.distanceUp, 100);
+    await this.setupTrench();
 
     return this.voxelManager.voxelGeometries[this.playerId];
   }

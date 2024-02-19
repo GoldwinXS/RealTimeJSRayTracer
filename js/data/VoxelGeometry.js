@@ -58,7 +58,7 @@ export class VoxelGeometry {
   id;
 
   constructor(filepath, position = new THREE.Vector3(0, 0, 0), voxelSize = 1) {
-    this.filePath = filepath;
+    this.filepath = filepath;
     this.position = position;
     this.voxelSize = voxelSize;
   }
@@ -145,12 +145,12 @@ export class VoxelGeometry {
 
   /**
    * Asynchronously loads voxel data from a file and returns the processed data.
-   * @param {string} filePath - The local filepath to the voxel model.
+   * @param {string} filepath - The local filepath to the voxel model.
    * @returns {Promise<{voxelData: Uint8Array, size: THREE.Vector3}>} Processed voxel data and its size.
    */
-  async #loadVoxelData(filePath) {
+  async #loadVoxelData(filepath) {
     try {
-      const response = await fetch(filePath);
+      const response = await fetch(filepath);
       const buffer = await response.arrayBuffer();
       const voxData = readVox(new Uint8Array(buffer));
 

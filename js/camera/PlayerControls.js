@@ -81,10 +81,10 @@ export class PlayerControls extends FirstPersonCameraControls {
     // Roll
     let rollSpeed = 3;
     if (this.keyPressed("KeyQ")) {
-      this.ship.mesh.rotation.x += rollSpeed * frameTime;
+      this.ship.mesh.rotation.z += rollSpeed * frameTime;
       cameraIsMoving = true;
     } else if (this.keyPressed("KeyE")) {
-      this.ship.mesh.rotation.x -= rollSpeed * frameTime;
+      this.ship.mesh.rotation.y -= rollSpeed * frameTime;
       cameraIsMoving = true;
     }
 

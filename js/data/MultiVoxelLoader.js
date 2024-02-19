@@ -32,12 +32,14 @@ import { VoxelGeometry, calculateIndex } from "./VoxelGeometry";
  */
 export class VoxelGeometryManager {
   // TODO: Calculate max size from user device.
-  maxTextureDimensions = new THREE.Vector3(128, 128, 128);
+  maxTextureDimensions = new THREE.Vector3(512, 512, 512);
   voxelGeometries = {};
   voxelData = [];
   lights = {};
   totalLights = 0;
   specialColors = {};
+  fileTextureMapping = {};
+
   voxelTexture;
   lightTexture;
   lightTextureSize;
@@ -121,6 +123,7 @@ export class VoxelGeometryManager {
     let currentSize = { x: 0, y: 0, z: 0 };
     let rowHeight = 0,
       layerDepth = 0;
+    const marginSize = 1;
 
     // Sort the voxel geometries in descending order of their volume
     geometriesArray.sort((a, b) => {
@@ -132,34 +135,62 @@ export class VoxelGeometryManager {
     });
 
     geometriesArray.forEach((geometry) => {
-      // Calculate and assign absolute positions
-      if (currentSize.x + geometry.gridDimensions.x > maxTextureDimensions.x) {
+      if (this.fileTextureMapping[geometry.filepath]) {
+        // Assign existing atlas coordinates to this geometry instance
+        geometry.textureMinPosition =
+          this.fileTextureMapping[geometry.filename].textureMinPosition;
+        geometry.textureMaxPosition =
+          this.fileTextureMapping[geometry.filename].textureMaxPosition;
+        geometry.textureMinPositionNormalized =
+          this.fileTextureMapping[
+            geometry.filename
+          ].textureMinPositionNormalized;
+        geometry.textureMaxPositionNormalized =
+          this.fileTextureMapping[
+            geometry.filename
+          ].textureMaxPositionNormalized;
+        return;
+      }
+
+      // Calculate and assign absolute positions with margins
+      if (
+        currentSize.x + geometry.gridDimensions.x + marginSize * 2 >
+        maxTextureDimensions.x
+      ) {
         currentSize.x = 0;
-        currentSize.y += rowHeight;
+        currentSize.y += rowHeight + marginSize; // Add marginSize when moving to a new row
         rowHeight = 0;
       }
 
-      if (currentSize.y + geometry.gridDimensions.y > maxTextureDimensions.y) {
+      if (
+        currentSize.y + geometry.gridDimensions.y + marginSize * 2 >
+        maxTextureDimensions.y
+      ) {
         currentSize.y = 0;
-        currentSize.z += layerDepth;
+        currentSize.z += layerDepth + marginSize; // Add marginSize when moving to a new layer
         layerDepth = 0;
       }
 
       geometry.textureMinPosition = new THREE.Vector3(
-        currentSize.x,
-        currentSize.y,
+        currentSize.x + marginSize, // Add marginSize to the start position
+        currentSize.y + marginSize,
         currentSize.z
       );
       geometry.textureMaxPosition = new THREE.Vector3(
-        currentSize.x + geometry.gridDimensions.x,
-        currentSize.y + geometry.gridDimensions.y,
+        currentSize.x + geometry.gridDimensions.x + marginSize, // Account for marginSize at the end
+        currentSize.y + geometry.gridDimensions.y + marginSize,
         currentSize.z + geometry.gridDimensions.z
       );
 
       // Update current positions and row/layer sizes
-      currentSize.x += geometry.gridDimensions.x;
-      rowHeight = Math.max(rowHeight, geometry.gridDimensions.y);
-      layerDepth = Math.max(layerDepth, geometry.gridDimensions.z);
+
+      // Update current positions and row/layer sizes, accounting for margins
+      currentSize.x += geometry.gridDimensions.x + marginSize * 2; // Move currentSize.x by the geometry's width plus both left and right margins
+      rowHeight = Math.max(
+        rowHeight,
+        geometry.gridDimensions.y + marginSize * 2
+      ); // Adjust rowHeight considering the geometry's height plus top and bottom margins
+      layerDepth = Math.max(layerDepth, geometry.gridDimensions.z); // Layer depth doesn't need margin since z is not tiled in 2D atlas
 
       // Calculate and assign normalized positions
       geometry.textureMinPositionNormalized = new THREE.Vector3(
@@ -173,6 +204,13 @@ export class VoxelGeometryManager {
         geometry.textureMaxPosition.y / maxTextureDimensions.y,
         geometry.textureMaxPosition.z / maxTextureDimensions.z
       );
+
+      this.fileTextureMapping[geometry.filename] = {
+        textureMinPosition: geometry.textureMinPosition,
+        textureMaxPosition: geometry.textureMaxPosition,
+        textureMinPositionNormalized: geometry.textureMinPositionNormalized,
+        textureMaxPositionNormalized: geometry.textureMaxPositionNormalized,
+      };
     });
   }
 

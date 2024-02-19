@@ -328,6 +328,7 @@ function defineSpecialColors(voxelManager) {
 
   // Lights
   voxelManager.addSpecialColor({ red: 208, green: 204, blue: 115 }, 19);
+  voxelManager.addSpecialColor({ red: 255, green: 0, blue: 51 }, 19);
 
   // Untracked Lights
   voxelManager.addSpecialColor({ red: 225, green: 101, blue: 101 }, 19);
