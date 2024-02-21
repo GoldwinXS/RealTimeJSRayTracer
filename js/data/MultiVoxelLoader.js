@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { VoxelGeometry, calculateIndex } from "./VoxelGeometry";
+import { VoxelGeometry } from "./VoxelGeometry";
 
 /**
  * VoxelGeometryManager handles the creation, management, and rendering preparation of multiple voxel geometries.
@@ -32,7 +32,7 @@ import { VoxelGeometry, calculateIndex } from "./VoxelGeometry";
  */
 export class VoxelGeometryManager {
   // TODO: Calculate max size from user device.
-  maxTextureDimensions = new THREE.Vector3(512, 512, 512);
+  maxTextureDimensions = new THREE.Vector3(258, 258, 258);
   voxelGeometries = {};
   voxelData = [];
   lights = {};
@@ -47,6 +47,52 @@ export class VoxelGeometryManager {
   totalVoxelGeometries = 0;
   textureWidth;
 
+  constructor() {
+    this.worker = new Worker(
+      new URL("./VoxelGeometryWorker.js", import.meta.url),
+      { type: "module" }
+    );
+
+    this.setupWorkerListener();
+  }
+
+  setupWorkerListener() {
+    this.worker.onmessage = (e) => {
+      const { action, data } = e.data;
+
+      switch (action) {
+        case "updated":
+          this.handleWorkerUpdateResponse(data);
+          break;
+      }
+    };
+  }
+
+  handleWorkerUpdateResponse(data) {
+    this.voxelTexture = this.#createVoxelTexture(
+      data.atlasData,
+      this.maxTextureDimensions
+    );
+
+    // Assuming `this.geometries` is a Map or an object where keys are `id`s of geometries
+    data.geometriesArray.forEach((serializedGeom) => {
+      let geom = this.voxelGeometries[serializedGeom.id];
+      // const geom = this.geometries[serializedGeom.id]; // If it's an object
+      if (geom) {
+        // If the geometry has a deserialize method, use it
+        if (typeof geom.deserialize === "function") {
+          geom.deserialize(serializedGeom);
+        }
+      } else {
+        console.warn(`Geometry with id ${serializedGeom.id} not found.`);
+      }
+    });
+
+    this.totalLights = data.totalLights;
+    this.lights = data.lights;
+    this.updateVoxelShaderData();
+  }
+
   /**
    * Adds and loads a voxel geometry asynchronously.
    * @param {string} filepath - The file path of the .vox file for the geometry.
@@ -60,8 +106,12 @@ export class VoxelGeometryManager {
     this.voxelGeometries[currentId] = geom;
     geom.id = this.currentVoxelIndex;
     this.currentVoxelIndex++;
+    console.log(
+      `Currently have ${this.totalVoxelGeometries + 1} voxel geometries`
+    );
     this.totalVoxelGeometries++;
     await this.#update();
+    console.log(`Added geom ${currentId}`);
     return currentId;
   }
 
@@ -72,17 +122,18 @@ export class VoxelGeometryManager {
   removeGeometry(id) {
     delete this.voxelGeometries[id];
     this.totalVoxelGeometries--;
+    console.log(`Removed geom ${id}`);
     this.#update();
   }
 
   setGeomPosition(id, position) {
     this.voxelGeometries[id].setPosition(position);
-    this.updateShaderTextureData();
+    this.updateVoxelShaderData();
   }
 
   setGeomRotation(id, input, degrees) {
     this.voxelGeometries[id].setRotation(input, degrees);
-    this.updateShaderTextureData();
+    this.updateVoxelShaderData();
   }
 
   /**
@@ -93,15 +144,32 @@ export class VoxelGeometryManager {
       Object.values(this.voxelGeometries).map((geom) => geom.loaded)
     );
     this.#packVoxelGeometries(this.voxelGeometries, this.maxTextureDimensions);
-    const atlasData = this.#compileTextureAtlas(this.voxelGeometries);
-    this.voxelTexture = this.#createVoxelTexture(
-      atlasData,
-      this.maxTextureDimensions
+    // Send the data to the worker rather than process it in this thread.
+    const geometriesData = Object.values(this.voxelGeometries).map((geometry) =>
+      geometry.serialize()
     );
-    this.updateShaderTextureData();
+
+    const data = {
+      maxTextureDimensions: {
+        x: this.maxTextureDimensions.x,
+        y: this.maxTextureDimensions.y,
+        z: this.maxTextureDimensions.z,
+      },
+      specialColors: this.specialColors,
+      geometriesData: geometriesData,
+    };
+
+    // Now send this data to the worker
+    this.worker.postMessage({ action: "update", data: data });
+    // const atlasData = this.#compileTextureAtlas(this.voxelGeometries);
+    // this.voxelTexture = this.#createVoxelTexture(
+    //   atlasData,
+    //   this.maxTextureDimensions
+    // );
+    // this.updateVoxelShaderData();
   }
 
-  updateShaderTextureData() {
+  updateVoxelShaderData() {
     const { dataTexture, textureWidth } = this.#prepareShaderData(
       this.voxelGeometries
     );
@@ -215,91 +283,6 @@ export class VoxelGeometryManager {
   }
 
   /**
-   * Prepares a single 3D texture to pass to the fragment shader.
-   * @param {VoxelGeometry[]} packedGeometries - An array of packed geometries.
-   * @returns {Uint8Array} - Data needed to create the 3D texture.
-   */
-  #compileTextureAtlas(packedGeometries) {
-    this.lights = {};
-    this.totalLights = 0;
-    const geometriesArray = Object.values(packedGeometries);
-
-    const totalSize =
-      this.maxTextureDimensions.x *
-      this.maxTextureDimensions.y *
-      this.maxTextureDimensions.z;
-    const atlasData = new Uint8Array(totalSize * 4); // 4 for RGBA
-
-    geometriesArray.forEach((geometry, index) => {
-      const size = geometry.gridDimensions;
-
-      for (let z = 0; z < size.z; z++) {
-        for (let y = 0; y < size.y; y++) {
-          for (let x = 0; x < size.x; x++) {
-            const localIndex = calculateIndex(x, y, z, size.x, size.y);
-            const atlasX = x + geometry.textureMinPosition.x;
-            const atlasY = y + geometry.textureMinPosition.y;
-            const atlasZ = z + geometry.textureMinPosition.z;
-            const atlasIndex = calculateIndex(
-              atlasX,
-              atlasY,
-              atlasZ,
-              this.maxTextureDimensions.x,
-              this.maxTextureDimensions.y
-            );
-
-            const red = geometry.voxelData[localIndex + 0];
-            const green = geometry.voxelData[localIndex + 1];
-            const blue = geometry.voxelData[localIndex + 2];
-            const alpha = geometry.voxelData[localIndex + 3];
-
-            atlasData[atlasIndex + 0] = red;
-            atlasData[atlasIndex + 1] = green;
-            atlasData[atlasIndex + 2] = blue;
-            atlasData[atlasIndex + 3] = alpha > 0 ? 1 : 0;
-            const color = { red, green, blue };
-
-            const colorKey = this.#getColorKey(color);
-            if (
-              this.specialColors &&
-              this.specialColors[colorKey] &&
-              alpha != 0
-            ) {
-              // Encode the special color int othe alpha channel.
-              atlasData[atlasIndex + 3] = this.specialColors[colorKey];
-
-              // If we encounter a light, add it to lights to keep track of them for importance sampling.
-              if (this.specialColors[colorKey] == 20) {
-                // Calculate the local position of the light relative to the model.
-                const localPosition = new THREE.Vector3(
-                  geometry.position.x - x,
-                  geometry.position.y - y,
-                  geometry.position.z - z
-                );
-
-                this.#handleLight(localPosition, color, geometry);
-              }
-            }
-          }
-        }
-      }
-    });
-
-    return atlasData;
-  }
-
-  #handleLight(localPosition, color, geometry) {
-    // Use the transformed position for the light
-    this.lights[this.#getPositionKey(localPosition)] = {
-      red: color.red,
-      green: color.green,
-      blue: color.blue,
-      voxelSize: geometry.voxelSize,
-    };
-    this.totalLights++;
-  }
-
-  /**
    * Creates a 3D texture from the given voxel data.
    * @param {Uint8Array} voxelData - The voxel data to be used in the texture.
    * @param {THREE.Vector3} size - The dimensions of the texture.
@@ -383,10 +366,6 @@ export class VoxelGeometryManager {
 
     // Return the light texture
     return { lightTexture, lightTextureSize };
-  }
-
-  #getPositionKey(position) {
-    return `${position.x},${position.y},${position.z}`;
   }
 
   #getColorKey(color) {

@@ -2,6 +2,7 @@ import { FirstPersonCameraControls } from "./FirstPersonCameraControls";
 import * as THREE from "three";
 
 export class PlayerControls extends FirstPersonCameraControls {
+  spawnShip = false;
   constructor(worldCamera, ship) {
     super(worldCamera);
     this.ship = ship; // The ship object the camera should always look at
@@ -27,13 +28,17 @@ export class PlayerControls extends FirstPersonCameraControls {
     this.movementX = event.movementX || event.mozMovementX || 0;
     this.movementY = event.movementY || event.mozMovementY || 0;
 
-    let yRotation = this.movementX * 0.0012 * this.cameraRotationSpeed;
-    let xRotation = this.movementY * 0.001 * this.cameraRotationSpeed;
+    // Convert mouse movements into rotation angles
+    let xRotationAngle = this.movementX * 0.0012 * this.cameraRotationSpeed;
+    let yRotationAngle = this.movementY * 0.001 * this.cameraRotationSpeed;
 
-    // Apply rotations to the ship based on mouse movement
-    this.ship.mesh.rotation.x -= yRotation;
-    this.ship.mesh.rotation.y -= xRotation;
-    this.worldCamera.rotation.z = this.ship.mesh.rotation.z;
+    // Create rotation axes (assuming Y is up/down and X is left/right)
+    let xAxis = new THREE.Vector3(1, 0, 0); // Local X axis for pitch
+    let yAxis = new THREE.Vector3(0, 1, 0); // Local Y axis for yaw
+
+    // Apply the rotation relative to the ship's current orientation
+    this.ship.mesh.rotateOnAxis(xAxis, -xRotationAngle); // For pitch
+    this.ship.mesh.rotateOnAxis(yAxis, -yRotationAngle); // For yaw
   }
 
   getShipVectors() {
@@ -77,14 +82,19 @@ export class PlayerControls extends FirstPersonCameraControls {
       this.shotsFired++;
       this.firing = true;
     }
-
+    if (this.keyPressed("KeyT")) {
+      this.spawnShip = true;
+    }
+    let xAxis = new THREE.Vector3(1, 0, 0); // Local X axis for pitch
     // Roll
     let rollSpeed = 3;
     if (this.keyPressed("KeyQ")) {
-      this.ship.mesh.rotation.z += rollSpeed * frameTime;
+      this.ship.mesh.rotateOnAxis(xAxis, rollSpeed * frameTime);
+      // this.ship.mesh.rotation.x += rollSpeed * frameTime;
       cameraIsMoving = true;
     } else if (this.keyPressed("KeyE")) {
-      this.ship.mesh.rotation.y -= rollSpeed * frameTime;
+      this.ship.mesh.rotateOnAxis(xAxis, -(rollSpeed * frameTime));
+      // this.ship.mesh.rotation.x -= rollSpeed * frameTime;
       cameraIsMoving = true;
     }
 

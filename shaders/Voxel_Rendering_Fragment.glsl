@@ -17,6 +17,11 @@ uniform float uVoxelLightTextureSize;
 
 vec3 emission = vec3(1);
 vec3 yellowLightColor = vec3(1.0, 0.8, 0.2) * 2.0;
+const float dataSize = 7.0;
+
+float getDataTextureWidth() {
+	return float((float(uNumberOfVoxelGeometries + 1) * dataSize) + dataSize);
+}
 
 struct VoxelGeometry {
 	mat4 voxelMeshInvMatrix;
@@ -28,12 +33,13 @@ struct VoxelGeometry {
 
 // Function to read voxel data from the texture
 VoxelGeometry getVoxelGeometry(int voxelIndex) {
+
 	float floatPerVoxel = 28.0; // Total number of floats per voxel
 	float floatsPerTexel = 4.0; // 4 floats per RGBA pixel
 	float texelIndex = float(voxelIndex) * floatPerVoxel / floatsPerTexel;
-	texelIndex = texelIndex * 1.01;
+	texelIndex = texelIndex + 0.001;
 	float row = 0.0;
-
+	// float uVoxelDataTextureWidth = getuVoxelDataTextureWidth();
 	VoxelGeometry voxel;
 	vec4 temp;
 

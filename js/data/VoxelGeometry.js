@@ -161,6 +161,58 @@ export class VoxelGeometry {
     }
   }
 
+  serialize() {
+    return {
+      id: this.id,
+      gridDimensions: {
+        x: this.gridDimensions.x,
+        y: this.gridDimensions.y,
+        z: this.gridDimensions.z,
+      },
+      voxelData: this.voxelData,
+      position: { x: this.position.x, y: this.position.y, z: this.position.z },
+      voxelSize: this.voxelSize,
+      textureMinPosition: {
+        x: this.textureMinPosition.x,
+        y: this.textureMinPosition.y,
+        z: this.textureMinPosition.z,
+      },
+    };
+  }
+
+  deserialize(data) {
+    if (data.id) {
+      this.id = data.id;
+    }
+    if (data.gridDimensions) {
+      this.gridDimensions = new THREE.Vector3(
+        data.gridDimensions.x,
+        data.gridDimensions.y,
+        data.gridDimensions.z
+      );
+    }
+    if (data.voxelData) {
+      this.voxelData = data.voxelData;
+    }
+    if (data.position) {
+      this.position = new THREE.Vector3(
+        data.position.x,
+        data.position.y,
+        data.position.z
+      );
+    }
+    if (typeof data.voxelSize !== "undefined") {
+      this.voxelSize = data.voxelSize;
+    }
+    if (data.textureMinPosition) {
+      this.textureMinPosition = new THREE.Vector3(
+        data.textureMinPosition.x,
+        data.textureMinPosition.y,
+        data.textureMinPosition.z
+      );
+    }
+  }
+
   /**
    *
    * @param {Object} voxData - The raw voxel data from a .vox file. This typically includes
