@@ -39,7 +39,7 @@ export class VoxelGeometryManager {
   totalLights = 0;
   specialColors = {};
   fileTextureMapping = {};
-
+  needsUpdate = false;
   voxelTexture;
   lightTexture;
   lightTextureSize;
@@ -69,6 +69,7 @@ export class VoxelGeometryManager {
   }
 
   handleWorkerUpdateResponse(data) {
+    console.log("handeling update");
     this.voxelTexture = this.#createVoxelTexture(
       data.atlasData,
       this.maxTextureDimensions
@@ -77,11 +78,10 @@ export class VoxelGeometryManager {
     // Assuming `this.geometries` is a Map or an object where keys are `id`s of geometries
     data.geometriesArray.forEach((serializedGeom) => {
       let geom = this.voxelGeometries[serializedGeom.id];
-      // const geom = this.geometries[serializedGeom.id]; // If it's an object
       if (geom) {
-        // If the geometry has a deserialize method, use it
         if (typeof geom.deserialize === "function") {
           geom.deserialize(serializedGeom);
+          this.updateVoxelShaderData();
         }
       } else {
         console.warn(`Geometry with id ${serializedGeom.id} not found.`);
@@ -90,7 +90,6 @@ export class VoxelGeometryManager {
 
     this.totalLights = data.totalLights;
     this.lights = data.lights;
-    this.updateVoxelShaderData();
   }
 
   /**
@@ -101,29 +100,37 @@ export class VoxelGeometryManager {
    * @returns {Promise} - A promise that resolves once the geometry is added and loaded.
    */
   async addGeometry(filepath, position, voxelSize) {
-    const geom = await VoxelGeometry.create(filepath, position, voxelSize);
-    const currentId = this.currentVoxelIndex;
-    this.voxelGeometries[currentId] = geom;
-    geom.id = this.currentVoxelIndex;
-    this.currentVoxelIndex++;
-    console.log(
-      `Currently have ${this.totalVoxelGeometries + 1} voxel geometries`
-    );
-    this.totalVoxelGeometries++;
-    await this.#update();
-    console.log(`Added geom ${currentId}`);
-    return currentId;
+    return new Promise((resolve, reject) => {
+      const currentId = this.currentVoxelIndex++;
+      this.voxelGeometries[currentId] = { loading: true };
+
+      VoxelGeometry.create(filepath, position, voxelSize)
+        .then((geom) => {
+          this.voxelGeometries[currentId] = geom;
+          geom.id = currentId;
+          this.totalVoxelGeometries++;
+          this.needsUpdate = true;
+          resolve(currentId);
+        })
+        .catch((error) => {
+          console.error("Failed to create geometry:", error);
+          reject(error);
+        });
+    });
   }
 
   /**
    * Removes a voxel geometry.
    * @param {number} id
    */
-  removeGeometry(id) {
-    delete this.voxelGeometries[id];
-    this.totalVoxelGeometries--;
-    console.log(`Removed geom ${id}`);
-    this.#update();
+  async removeGeometry(id) {
+    if (this.voxelGeometries[id]) {
+      delete this.voxelGeometries[id];
+      this.totalVoxelGeometries--;
+      this.needsUpdate = true;
+    } else {
+      console.warn(`Geometry ${id} not found.`);
+    }
   }
 
   setGeomPosition(id, position) {
@@ -139,13 +146,10 @@ export class VoxelGeometryManager {
   /**
    * Updates the data needed to render the voxel geometries.
    */
-  async #update() {
-    await Promise.all(
-      Object.values(this.voxelGeometries).map((geom) => geom.loaded)
-    );
-    this.#packVoxelGeometries(this.voxelGeometries, this.maxTextureDimensions);
-    // Send the data to the worker rather than process it in this thread.
-    const geometriesData = Object.values(this.voxelGeometries).map((geometry) =>
+  async update() {
+    this.#packVoxelGeometries();
+    const loadedGeometries = this.#getLoadedGeometries();
+    const geometriesData = Object.values(loadedGeometries).map((geometry) =>
       geometry.serialize()
     );
 
@@ -159,26 +163,59 @@ export class VoxelGeometryManager {
       geometriesData: geometriesData,
     };
 
-    // Now send this data to the worker
-    this.worker.postMessage({ action: "update", data: data });
-    // const atlasData = this.#compileTextureAtlas(this.voxelGeometries);
-    // this.voxelTexture = this.#createVoxelTexture(
-    //   atlasData,
-    //   this.maxTextureDimensions
-    // );
-    // this.updateVoxelShaderData();
+    // Return a new promise that resolves when the worker sends back an 'updated' message
+    return new Promise((resolve, reject) => {
+      // Listen for a message from the worker indicating the update is complete
+      this.worker.onmessage = (e) => {
+        const { action, data } = e.data;
+
+        if (action === "updated") {
+          // Call a method to handle the update (e.g., refresh textures, shader data)
+          this.handleWorkerUpdateResponse(data);
+          resolve(); // Resolve the promise indicating the update is complete
+        }
+      };
+
+      // If there's an error, you can use the reject function of the promise
+      this.worker.onerror = (error) => {
+        console.error("Worker error:", error);
+        reject(error); // Reject the promise on error
+      };
+
+      // Send the data to the worker to initiate the update process
+      this.worker.postMessage({ action: "update", data: data });
+    });
   }
 
   updateVoxelShaderData() {
-    const { dataTexture, textureWidth } = this.#prepareShaderData(
-      this.voxelGeometries
-    );
+    if (this.needsUpdate) {
+      this.needsUpdate = false;
+      this.update().then(console.log("Update complete"));
+    }
+    const loadedGeoms = this.#getLoadedGeometries();
+    const { dataTexture, textureWidth } = this.#prepareShaderData(loadedGeoms);
     this.shaderData = dataTexture;
     this.textureWidth = textureWidth;
     const { lightTexture, lightTextureSize } =
       this.#encodeLightsIntoDataTexture();
+    if (this.totalLights == 0) {
+      console.log("?");
+    }
     this.lightTexture = lightTexture;
     this.lightTextureSize = lightTextureSize;
+  }
+
+  #getLoadedGeometries() {
+    // Filter out entries where the geometry has 'loading: true'
+    const loadedGeometries = Object.entries(this.voxelGeometries)
+      .filter(([_, geom]) => !geom.loading)
+      .reduce((acc, [id, geom]) => {
+        // Accumulate entries back into an object
+        acc[id] = geom;
+        return acc;
+      }, {});
+
+    return loadedGeometries;
   }
 
   /**
@@ -186,8 +223,9 @@ export class VoxelGeometryManager {
    * @param {*} voxelGeometries
    * @param {*} maxTextureDimensions
    */
-  #packVoxelGeometries(voxelGeometries, maxTextureDimensions) {
-    const geometriesArray = Object.values(voxelGeometries);
+  #packVoxelGeometries() {
+    const loadedGeoms = this.#getLoadedGeometries();
+    const geometriesArray = Object.values(loadedGeoms);
     let currentSize = { x: 0, y: 0, z: 0 };
     let rowHeight = 0,
       layerDepth = 0;
@@ -223,7 +261,7 @@ export class VoxelGeometryManager {
       // Calculate and assign absolute positions with margins
       if (
         currentSize.x + geometry.gridDimensions.x + marginSize * 2 >
-        maxTextureDimensions.x
+        this.maxTextureDimensions.x
       ) {
         currentSize.x = 0;
         currentSize.y += rowHeight + marginSize; // Add marginSize when moving to a new row
@@ -232,7 +270,7 @@ export class VoxelGeometryManager {
 
       if (
         currentSize.y + geometry.gridDimensions.y + marginSize * 2 >
-        maxTextureDimensions.y
+        this.maxTextureDimensions.y
       ) {
         currentSize.y = 0;
         currentSize.z += layerDepth + marginSize; // Add marginSize when moving to a new layer
@@ -262,15 +300,15 @@ export class VoxelGeometryManager {
 
       // Calculate and assign normalized positions
       geometry.textureMinPositionNormalized = new THREE.Vector3(
-        geometry.textureMinPosition.x / maxTextureDimensions.x,
-        geometry.textureMinPosition.y / maxTextureDimensions.y,
-        geometry.textureMinPosition.z / maxTextureDimensions.z
+        geometry.textureMinPosition.x / this.maxTextureDimensions.x,
+        geometry.textureMinPosition.y / this.maxTextureDimensions.y,
+        geometry.textureMinPosition.z / this.maxTextureDimensions.z
       );
 
       geometry.textureMaxPositionNormalized = new THREE.Vector3(
-        geometry.textureMaxPosition.x / maxTextureDimensions.x,
-        geometry.textureMaxPosition.y / maxTextureDimensions.y,
-        geometry.textureMaxPosition.z / maxTextureDimensions.z
+        geometry.textureMaxPosition.x / this.maxTextureDimensions.x,
+        geometry.textureMaxPosition.y / this.maxTextureDimensions.y,
+        geometry.textureMaxPosition.z / this.maxTextureDimensions.z
       );
 
       this.fileTextureMapping[geometry.filename] = {
@@ -303,7 +341,7 @@ export class VoxelGeometryManager {
     voxelTexture.magFilter = THREE.NearestFilter;
     voxelTexture.unpackAlignment = 1;
     voxelTexture.needsUpdate = true;
-    voxelTexture.generateMipmaps = false;
+    voxelTexture.generateMipmaps = true;
     return voxelTexture;
   }
 
@@ -323,7 +361,13 @@ export class VoxelGeometryManager {
 
     // eslint-disable-next-line no-unused-vars
     Object.values(voxelGeometries).forEach((geom, _) => {
+      if (geom.loading) {
+        return;
+      }
       const voxelFloats = geom.toFloatArray();
+      if (!voxelFloats) {
+        return;
+      }
       for (let i = 0; i < voxelFloats.length; i++) {
         data[dataIndex++] = voxelFloats[i];
       }

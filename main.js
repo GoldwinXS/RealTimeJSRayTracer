@@ -321,6 +321,25 @@ function startApp() {
 }
 
 function defineSpecialColors(voxelManager) {
+  // #define DIFF 1
+  // #define REFR 2
+  // #define SPEC 3
+  // #define COAT 4
+  // #define CARCOAT 5
+  // #define TRANSLUCENT 6
+  // #define SPECSUB 7
+  // #define CHECK 8
+  // #define WATER 9
+  // #define PBR_MATERIAL 10
+  // #define WOOD 11
+  // #define SEAFLOOR 12
+  // #define TERRAIN 13
+  // #define CLOTH 14
+  // #define LIGHTWOOD 15
+  // #define DARKWOOD 16
+  // #define PAINTING 17
+  // #define METALCOAT 18
+
   // Tracked Lights
   voxelManager.addSpecialColor({ red: 208, green: 206, blue: 129 }, 20);
   voxelManager.addSpecialColor({ red: 255, green: 33, blue: 0 }, 20);
@@ -340,8 +359,9 @@ function defineSpecialColors(voxelManager) {
   voxelManager.addSpecialColor({ red: 102, green: 102, blue: 102 }, 3);
 
   // Glass
-  voxelManager.addSpecialColor({ red: 41, green: 75, blue: 55 }, 3);
-  voxelManager.addSpecialColor({ red: 72, green: 132, blue: 122 }, 3);
+  voxelManager.addSpecialColor({ red: 41, green: 75, blue: 55 }, 2);
+  voxelManager.addSpecialColor({ red: 72, green: 132, blue: 122 }, 2);
+  voxelManager.addSpecialColor({ red: 0, green: 0, blue: 221 }, 2);
 }
 
 async function loadFilesAndStart(sceneSettings) {

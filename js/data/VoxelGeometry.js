@@ -56,11 +56,13 @@ export class VoxelGeometry {
   material;
   shaderData;
   id;
+  needsUpdate = false;
 
   constructor(filepath, position = new THREE.Vector3(0, 0, 0), voxelSize = 1) {
     this.filepath = filepath;
     this.position = position;
     this.voxelSize = voxelSize;
+    this.float32Data = {};
   }
 
   /**
@@ -255,6 +257,7 @@ export class VoxelGeometry {
   setPosition(position) {
     this.mesh.position.set(position.x, position.y, position.z);
     this.mesh.updateMatrixWorld(true);
+    this.needsUpdate = true;
   }
 
   setRotation(input, degrees) {
@@ -269,19 +272,41 @@ export class VoxelGeometry {
       console.error("Invalid input for setRotation");
     }
     this.mesh.updateMatrixWorld(true);
+    this.needsUpdate = true;
   }
 
   /**
-   * Returns the current state as datafor the shader
+   * Returns the current state as data for the shader
    * @returns {Float32Array} - Data needed for shader structs.
    */
   toFloatArray() {
+    const positionChanged = this.float32Data?.position
+      ? !this.mesh.position.equals(this.float32Data?.position)
+      : true;
+    const quaternionChanged = this.float32Data?.quaternion
+      ? !this.mesh.quaternion.equals(this.float32Data?.quaternion)
+      : true;
+
+    if (this.needsUpdate) {
+      console.log("update requested" + this.id);
+    }
+    if (!positionChanged || !quaternionChanged || this.needsUpdate) {
+      // If neither position nor quaternion has changed, return the cached data
+      this.needsUpdate = false;
+      return this.float32Data.data;
+    }
     // Ensure we update the mesh coordinates.
     this.mesh.updateMatrixWorld(true);
 
     // Invert the world matrix to get the inverse matrix for the shader.
     const invMatrix = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
     const matrixElements = invMatrix.elements;
+
+    // Save data to float32Data for later comparison
+    this.float32Data.quaternion = new THREE.Matrix4().copy(
+      this.mesh.matrixWorld
+    );
+    this.float32Data.position = new THREE.Vector3().copy(this.mesh.position);
 
     // Validate that all necessary properties are present and correct
     // You could add more validation as needed
@@ -296,10 +321,7 @@ export class VoxelGeometry {
       );
       return null; // Or handle this case as appropriate for your application
     }
-
-    // Ensure the array length matches the shader's expectation, including the matrix
-    // 10 initial values + 2 padding + 16 for the matrix = 28 floats total
-    return new Float32Array([
+    this.float32Data.data = new Float32Array([
       // 0-4
       this.voxelSize,
       this.gridDimensions.x,
@@ -335,5 +357,9 @@ export class VoxelGeometry {
       matrixElements[14],
       matrixElements[15],
     ]);
+
+    // Ensure the array length matches the shader's expectation, including the matrix
+    // 10 initial values + 2 padding + 16 for the matrix = 28 floats total
+    return this.float32Data.data;
   }
 }

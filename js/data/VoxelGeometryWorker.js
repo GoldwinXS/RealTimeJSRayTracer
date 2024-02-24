@@ -12,7 +12,6 @@ self.onmessage = function (e) {
     case "update":
       returnData = compileTextureAtlas(data);
       returnData.lights = lights;
-      console.log("Worker sending back data");
       self.postMessage({ action: "updated", data: returnData });
       break;
   }

@@ -11,6 +11,8 @@ export class GameManager {
   falconFile = "../../models/falcon.vox";
   deathStarChunk = "../../models/deathStarChunk.vox";
   BlasterBoltFile = "../../models/blasterBolt.vox";
+  transparentCubeFile = "../../models/transparentCube.vox";
+  metalCubeFile = "../../models/metalCube.vox";
   playerGeometry;
   playerControls;
   originPosition = new Vector3(0, 0, 0);
@@ -35,16 +37,24 @@ export class GameManager {
       Math.random() * 600,
       this.trenchStartZ
     ); // Starting position at the beginning of the trench
-    const tieFighterId = await this.voxelManager.addGeometry(
-      this.tieFile,
-      startPosition,
-      1
-    );
-    this.voxelManager.setGeomRotation(tieFighterId, "z", 90);
-    this.tieFighters[tieFighterId] = {
-      position: startPosition,
-      speed: 5,
-    };
+
+    this.voxelManager
+      .addGeometry(this.tieFile, startPosition, 1)
+      .then((tieFighterId) => {
+        // Now that we have the tieFighterId, we can set its rotation
+        this.voxelManager.setGeomRotation(tieFighterId, "z", 90);
+
+        // Store the tie fighter's details in the tieFighters object
+        this.tieFighters[tieFighterId] = {
+          position: startPosition,
+          speed: 5,
+        };
+
+        // If you need to perform more actions with the tieFighterId, do them here
+      })
+      .catch((error) => {
+        console.error("Error spawning Tie Fighter:", error);
+      });
   }
 
   moveTieFighters() {
@@ -79,7 +89,7 @@ export class GameManager {
     // this.#setupOrbitingLights();
   }
 
-  setupPlayerControls() {
+  async setupPlayerControls() {
     this.playerControls = new PlayerControls(
       this.worldCamera,
       this.playerGeometry
@@ -94,27 +104,25 @@ export class GameManager {
 
     // Reset firing status immediately to prevent multiple firings before the bullet is spawned
     this.playerControls.firing = false;
+    this.voxelManager
+      .addGeometry(this.BlasterBoltFile, bulletPosition, 1)
+      .then((bulletId) => {
+        console.log(`Bullet ${bulletId} spawned`);
+        this.playerControls.shotsSpawned++;
+        this.bullets[bulletId] = {
+          forwardVector,
+          bulletPosition,
+          moveCounter: 0,
+        };
+      })
+      .catch((error) => console.warn(`Could not spawn bullet ${error}`));
 
     // Return a new promise
-    return new Promise((resolve, reject) => {
-      // Perform the asynchronous operation without 'async' keyword in the executor function
-      this.voxelManager
-        .addGeometry(this.BlasterBoltFile, bulletPosition, 1)
-        .then((bulletId) => {
-          // Upon successful geometry addition, set up the bullet
-          this.bullets[bulletId] = {
-            forwardVector,
-            bulletPosition,
-            moveCounter: 0,
-          };
-          resolve(bulletId); // Resolve the promise with the bulletId
-        })
-        .catch(reject); // Reject the promise if there's an error
-    });
+    return;
   }
 
   moveBullet() {
-    Object.entries(this.bullets).forEach(([bulletId, bullet]) => {
+    Object.entries(this.bullets).forEach(async ([bulletId, bullet]) => {
       const bulletMovement = new Vector3().copy(
         bullet.forwardVector.multiplyScalar(1.2)
       );
@@ -126,8 +134,11 @@ export class GameManager {
       }
       bullet.moveCounter++;
       if (bullet.moveCounter > 50) {
-        this.voxelManager.removeGeometry(bulletId);
+        await this.voxelManager.removeGeometry(bulletId);
+        console.log(`Removing bullet with ${bulletId} from tracking.`);
         delete this.bullets[bulletId];
+
+        // delete this.bullets[bulletId];
       }
     });
   }
@@ -141,22 +152,10 @@ export class GameManager {
     }
     // Inside your animation or game loop
     // Example usage within your animation or game loop
-    if (
-      this.playerControls.firing &&
-      this.playerControls.shotsFired > this.playerControls.shotsSpawned
-    ) {
-      this.spawnBullet()
-        .then((bulletId) => {
-          // Bullet has been successfully spawned
-          console.log(`Bullet ${bulletId} spawned`);
-          this.playerControls.shotsSpawned++;
-        })
-        .catch((error) => {
-          // Handle any spawning errors
-          console.error("Error spawning bullet:", error);
-        });
-
-      // It's important to reset firing status after initiating spawnBullet to ensure correct game logic
+    if (this.playerControls.firing) {
+      this.spawnBullet();
+      console.log("Firing bullet");
+      this.playerControls.firing = false;
     }
     if (this.playerControls.spawnShip) {
       this.spawnTieFighter();
@@ -172,11 +171,11 @@ export class GameManager {
 
   async setupTrench() {
     const trenchLength = 1; // Define the length of the trench
-    const trenchScale = 150; // Scaling factor for each chunk
+    const trenchScale = 100; // Scaling factor for each chunk
     const scaledSize = 40 * trenchScale; // Calculate the scaled size of each chunk
 
     // Define the width of the open space in the trench for flying
-    const openSpaceWidth = 20 * trenchScale;
+    const openSpaceWidth = 10 * trenchScale;
 
     // Calculate positions for the left and right walls
     const wallLeftX = -openSpaceWidth / 2 - scaledSize / 2;
@@ -187,14 +186,14 @@ export class GameManager {
       let positionZ = i * scaledSize; // Position for each chunk along the Z-axis
 
       // Add geometry for the left wall
-      await this.voxelManager.addGeometry(
+      this.voxelManager.addGeometry(
         this.deathStarChunk,
         new Vector3(wallLeftX, -100, positionZ),
         trenchScale
       );
 
       // Add geometry for the right wall
-      await this.voxelManager.addGeometry(
+      this.voxelManager.addGeometry(
         this.deathStarChunk,
         new Vector3(wallRightX, -100, positionZ),
         trenchScale
@@ -207,7 +206,7 @@ export class GameManager {
       for (let j = 0; j < numFloorSegments; j++) {
         // Correctly calculate floorX to start from the edge of the left wall
         let floorX = wallLeftX + j * scaledSize + scaledSize / 2; // Start placing floor segments right after the left wall
-        await this.voxelManager.addGeometry(
+        this.voxelManager.addGeometry(
           this.deathStarChunk,
           new Vector3(floorX, floorY, positionZ),
           trenchScale
@@ -226,13 +225,38 @@ export class GameManager {
     this.playerId = Object.values(this.voxelManager.voxelGeometries).length - 1;
     this.voxelManager.setGeomRotation(this.playerId, "z", 90);
     this.voxelManager.setGeomRotation(this.playerId, "x", -90);
-
+    this.playerGeometry = this.voxelManager.voxelGeometries[this.playerId];
     // Add a lights
-    await this.voxelManager.addGeometry(
-      this.sunFile,
-      new Vector3(0, 1000000, 0),
-      500000
-    );
+    // await this.setupTrench();
+    await this.voxelManager
+      .addGeometry(this.sunFile, new Vector3(0, 1000000, 0), 500000)
+      .then(console.log("sun loaded"));
+
+    [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
+      await this.voxelManager.addGeometry(
+        [this.redSunFile, this.tealSunFile, this.sunFile][
+          Math.round(Math.random() * 2)
+        ],
+        new Vector3(posX, Math.random() * 300, Math.random() * 300),
+        50
+      );
+    });
+
+    // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
+    //   await this.voxelManager.addGeometry(
+    //     this.transparentCubeFile,
+    //     new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
+    //     50
+    //   );
+    // });
+
+    // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
+    //   await this.voxelManager.addGeometry(
+    //     this.metalCubeFile,
+    //     new Vector3(posX - 600, Math.random() * 1000, Math.random() * 1000),
+    //     50
+    //   );
+    // });
 
     // const destroyerID = await this.voxelManager.addGeometry(
     //   this.starDestroyerFile,
@@ -256,8 +280,8 @@ export class GameManager {
     // this.voxelManager.setGeomRotation(falconID, "x", -90);
 
     // await this.voxelManager.addGeometry(this.tealSunFile, this.distanceUp, 100);
-    await this.setupTrench();
 
+    // await this.voxelManager.update();
     return this.voxelManager.voxelGeometries[this.playerId];
   }
 }
