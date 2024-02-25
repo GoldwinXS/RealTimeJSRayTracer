@@ -50,11 +50,9 @@ export class VoxelGeometry {
   textureMaxPosition;
   textureMinPositionNormalized;
   textureMaxPositionNormalized;
-  data;
   mesh;
   texture;
   material;
-  shaderData;
   id;
   needsUpdate = false;
 
@@ -89,12 +87,38 @@ export class VoxelGeometry {
       geometry.mesh = voxelMesh;
       geometry.material = voxelMaterial;
       geometry.texture = voxelTexture;
-
+      this.needsUpdate = true;
       return geometry;
     } catch (error) {
       console.error("Error creating VoxelGeometry:", error);
       throw error; // Rethrow so it can be caught in loadFilesAndStart
     }
+  }
+
+  static cloneFromInstance(position, instance) {
+    const newGeometry = new VoxelGeometry(
+      instance.filepath,
+      position,
+      instance.voxelSize
+    );
+
+    // Directly copying properties
+    newGeometry.gridDimensions = instance.gridDimensions;
+    newGeometry.material = instance.material.clone();
+    newGeometry.mesh = instance.mesh.clone();
+    newGeometry.voxelSize = instance.voxelSize;
+    newGeometry.texture = instance.texture;
+    newGeometry.voxelData = instance.voxelData;
+    // newGeometry.material = voxelMaterial;
+    newGeometry.needsUpdate = true;
+    newGeometry.textureMaxPosition = instance.textureMaxPosition.clone();
+    newGeometry.textureMaxPositionNormalized =
+      instance.textureMaxPositionNormalized.clone();
+    newGeometry.textureMinPosition = instance.textureMinPosition.clone();
+    newGeometry.textureMinPositionNormalized =
+      instance.textureMinPositionNormalized.clone();
+
+    return newGeometry;
   }
 
   /**
@@ -280,46 +304,43 @@ export class VoxelGeometry {
    * @returns {Float32Array} - Data needed for shader structs.
    */
   toFloatArray() {
+    // Compare matrixWorld for overall transformation changes
+    const matrixWorldChanged = this.float32Data?.matrixWorld
+      ? !this.mesh.matrixWorld.equals(this.float32Data?.matrixWorld)
+      : true;
     const positionChanged = this.float32Data?.position
       ? !this.mesh.position.equals(this.float32Data?.position)
       : true;
+
+    // Compare quaternion for rotation changes
     const quaternionChanged = this.float32Data?.quaternion
       ? !this.mesh.quaternion.equals(this.float32Data?.quaternion)
       : true;
 
-    if (this.needsUpdate) {
+    if (
+      this.float32Data.data &&
+      !positionChanged &&
+      !quaternionChanged &&
+      !matrixWorldChanged &&
+      !this.needsUpdate
+    ) {
+      // If neither position, quaternion, nor matrixWorld has changed, return the cached data
       console.log("update requested" + this.id);
-    }
-    if (!positionChanged || !quaternionChanged || this.needsUpdate) {
-      // If neither position nor quaternion has changed, return the cached data
-      this.needsUpdate = false;
       return this.float32Data.data;
     }
+
+    // Update the cached quaternion and matrixWorld for future comparisons
+    this.float32Data.quaternion = this.mesh.quaternion.clone();
+    this.float32Data.matrixWorld = this.mesh.matrixWorld.clone();
+
     // Ensure we update the mesh coordinates.
     this.mesh.updateMatrixWorld(true);
 
     // Invert the world matrix to get the inverse matrix for the shader.
     const invMatrix = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
     const matrixElements = invMatrix.elements;
-
-    // Save data to float32Data for later comparison
-    this.float32Data.quaternion = new THREE.Matrix4().copy(
-      this.mesh.matrixWorld
-    );
-    this.float32Data.position = new THREE.Vector3().copy(this.mesh.position);
-
-    // Validate that all necessary properties are present and correct
-    // You could add more validation as needed
-    if (
-      !this.voxelSize ||
-      !this.gridDimensions ||
-      !this.textureMinPositionNormalized ||
-      !this.textureMaxPositionNormalized
-    ) {
-      console.error(
-        "VoxelGeometry.toFloatArray: Missing or invalid properties."
-      );
-      return null; // Or handle this case as appropriate for your application
+    if (!this.float32Data) {
+      this.float32Data = {};
     }
     this.float32Data.data = new Float32Array([
       // 0-4

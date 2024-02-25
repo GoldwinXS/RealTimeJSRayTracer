@@ -22,12 +22,12 @@ export class GameManager {
   veryShortDistance = new Vector3(150, 0, 0);
   currentRotation = 0;
   bullets = {};
+  tieFighters = {};
   orbitingLights = [];
   orbitRadius = 400;
   orbitSpeed = 0.02;
   bulletSpeed = 1.1;
 
-  tieFighters = {}; // Tracks all TIE fighters
   trenchStartZ = 0; // Start of the trench (along the Z-axis)
   trenchEndZ = 4000; // End of the trench (along the Z-axis) - adjust based on your game's scale
 
@@ -35,38 +35,25 @@ export class GameManager {
     const startPosition = new Vector3(
       Math.random() * 300,
       Math.random() * 600,
-      this.trenchStartZ
-    ); // Starting position at the beginning of the trench
-
-    this.voxelManager
-      .addGeometry(this.tieFile, startPosition, 1)
-      .then((tieFighterId) => {
-        // Now that we have the tieFighterId, we can set its rotation
-        this.voxelManager.setGeomRotation(tieFighterId, "z", 90);
-
-        // Store the tie fighter's details in the tieFighters object
-        this.tieFighters[tieFighterId] = {
-          position: startPosition,
-          speed: 5,
-        };
-
-        // If you need to perform more actions with the tieFighterId, do them here
-      })
-      .catch((error) => {
-        console.error("Error spawning Tie Fighter:", error);
-      });
+      Math.random() * 100
+    );
+    const newTieId = await this.voxelManager.addGeometry(
+      this.tieFile,
+      startPosition,
+      1
+    );
+    this.voxelManager.setGeomRotation(newTieId, "z", 90);
+    this.voxelManager.setGeomRotation(newTieId, "x", -90);
+    this.tieFighters[newTieId] = this.voxelManager.voxelGeometries[newTieId];
+    this.tieFighters[newTieId].speed = Math.random() * 10;
   }
 
   moveTieFighters() {
     Object.entries(this.tieFighters).forEach(([id, tieFighter]) => {
-      // Move the TIE fighter down the trench
       tieFighter.position.z += tieFighter.speed;
-      // Check if the TIE fighter has reached the end of the trench
       if (tieFighter.position.z > this.trenchEndZ) {
-        // Reset its position to the start of the trench
         tieFighter.position.z = this.trenchStartZ;
       }
-      // Update the TIE fighter's position in the voxel manager
       this.voxelManager.setGeomPosition(id, tieFighter.position);
     });
   }
@@ -96,29 +83,26 @@ export class GameManager {
     );
   }
 
-  spawnBullet() {
+  async spawnBullet() {
     const { forwardVector } = this.playerControls.getShipVectors();
     const bulletPosition = new Vector3().copy(
       this.playerGeometry.mesh.position
     );
 
-    // Reset firing status immediately to prevent multiple firings before the bullet is spawned
     this.playerControls.firing = false;
-    this.voxelManager
-      .addGeometry(this.BlasterBoltFile, bulletPosition, 1)
-      .then((bulletId) => {
-        console.log(`Bullet ${bulletId} spawned`);
-        this.playerControls.shotsSpawned++;
-        this.bullets[bulletId] = {
-          forwardVector,
-          bulletPosition,
-          moveCounter: 0,
-        };
-      })
-      .catch((error) => console.warn(`Could not spawn bullet ${error}`));
+    this.playerControls.shotsSpawned++;
 
-    // Return a new promise
-    return;
+    const bulletId = await this.voxelManager.addGeometry(
+      this.BlasterBoltFile,
+      bulletPosition,
+      1
+    );
+
+    this.bullets[bulletId] = {
+      forwardVector,
+      bulletPosition,
+      moveCounter: 0,
+    };
   }
 
   moveBullet() {
@@ -134,8 +118,8 @@ export class GameManager {
       }
       bullet.moveCounter++;
       if (bullet.moveCounter > 50) {
-        await this.voxelManager.removeGeometry(bulletId);
-        console.log(`Removing bullet with ${bulletId} from tracking.`);
+        this.voxelManager.removeGeometry(bulletId);
+        console.log(`Removing bullet with id ${bulletId} from tracking.`);
         delete this.bullets[bulletId];
 
         // delete this.bullets[bulletId];
@@ -150,12 +134,9 @@ export class GameManager {
     if (!this.voxelManager.voxelGeometries[0]) {
       return;
     }
-    // Inside your animation or game loop
-    // Example usage within your animation or game loop
     if (this.playerControls.firing) {
-      this.spawnBullet();
-      console.log("Firing bullet");
       this.playerControls.firing = false;
+      this.spawnBullet();
     }
     if (this.playerControls.spawnShip) {
       this.spawnTieFighter();
@@ -217,33 +198,43 @@ export class GameManager {
 
   async #setupGeometry() {
     // Add the player.
-    await this.voxelManager.addGeometry(
+    this.playerId = await this.voxelManager.addGeometry(
       this.starshipFile,
       this.veryShortDistance.multiplyScalar(-1),
       1
     );
-    this.playerId = Object.values(this.voxelManager.voxelGeometries).length - 1;
     this.voxelManager.setGeomRotation(this.playerId, "z", 90);
     this.voxelManager.setGeomRotation(this.playerId, "x", -90);
     this.playerGeometry = this.voxelManager.voxelGeometries[this.playerId];
-    // Add a lights
-    // await this.setupTrench();
-    await this.voxelManager
-      .addGeometry(this.sunFile, new Vector3(0, 1000000, 0), 500000)
-      .then(console.log("sun loaded"));
 
     [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
-      await this.voxelManager.addGeometry(
-        [this.redSunFile, this.tealSunFile, this.sunFile][
-          Math.round(Math.random() * 2)
-        ],
-        new Vector3(posX, Math.random() * 300, Math.random() * 300),
+      this.voxelManager.addGeometry(
+        this.transparentCubeFile,
+        new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
         50
       );
     });
 
+    // Add a lights
+    this.setupTrench();
+    this.voxelManager.addGeometry(
+      this.sunFile,
+      new Vector3(0, 1000000, 0),
+      500000
+    );
+
     // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
-    //   await this.voxelManager.addGeometry(
+    //   this.voxelManager.addGeometry(
+    //     [this.redSunFile, this.tealSunFile, this.sunFile][
+    //       Math.round(Math.random() * 2)
+    //     ],
+    //     new Vector3(Math.random() * 300, Math.random() * 300, posX),
+    //     50
+    //   );
+    // });
+
+    // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
+    //   this.voxelManager.addGeometry(
     //     this.transparentCubeFile,
     //     new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
     //     50
@@ -251,7 +242,7 @@ export class GameManager {
     // });
 
     // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
-    //   await this.voxelManager.addGeometry(
+    //   this.voxelManager.addGeometry(
     //     this.metalCubeFile,
     //     new Vector3(posX - 600, Math.random() * 1000, Math.random() * 1000),
     //     50

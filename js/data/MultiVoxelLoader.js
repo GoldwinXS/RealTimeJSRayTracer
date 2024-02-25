@@ -34,6 +34,7 @@ export class VoxelGeometryManager {
   // TODO: Calculate max size from user device.
   maxTextureDimensions = new THREE.Vector3(258, 258, 258);
   voxelGeometries = {};
+  cachedGeometries = {};
   voxelData = [];
   lights = {};
   totalLights = 0;
@@ -100,23 +101,35 @@ export class VoxelGeometryManager {
    * @returns {Promise} - A promise that resolves once the geometry is added and loaded.
    */
   async addGeometry(filepath, position, voxelSize) {
-    return new Promise((resolve, reject) => {
+    try {
       const currentId = this.currentVoxelIndex++;
-      this.voxelGeometries[currentId] = { loading: true };
+      this.totalVoxelGeometries++;
+      let geom;
 
-      VoxelGeometry.create(filepath, position, voxelSize)
-        .then((geom) => {
-          this.voxelGeometries[currentId] = geom;
-          geom.id = currentId;
-          this.totalVoxelGeometries++;
-          this.needsUpdate = true;
-          resolve(currentId);
-        })
-        .catch((error) => {
-          console.error("Failed to create geometry:", error);
-          reject(error);
-        });
-    });
+      // Used a cached version of the geometry if available.
+      if (this.cachedGeometries[filepath]) {
+        geom = VoxelGeometry.cloneFromInstance(
+          position,
+          this.cachedGeometries[filepath]
+        );
+      } else {
+        // Create a new geometery
+        geom = await VoxelGeometry.create(filepath, position, voxelSize);
+        this.needsUpdate = true;
+
+        // Cache the geometry
+        if (!this.cachedGeometries[filepath]) {
+          this.cachedGeometries[filepath] = geom;
+        }
+      }
+
+      geom.id = currentId;
+      this.voxelGeometries[currentId] = geom;
+
+      return currentId;
+    } catch (error) {
+      console.error(`Could not add geometry: ${error}`);
+    }
   }
 
   /**
@@ -124,7 +137,8 @@ export class VoxelGeometryManager {
    * @param {number} id
    */
   async removeGeometry(id) {
-    if (this.voxelGeometries[id]) {
+    const geom = this.voxelGeometries[id];
+    if (geom) {
       delete this.voxelGeometries[id];
       this.totalVoxelGeometries--;
       this.needsUpdate = true;
@@ -148,8 +162,7 @@ export class VoxelGeometryManager {
    */
   async update() {
     this.#packVoxelGeometries();
-    const loadedGeometries = this.#getLoadedGeometries();
-    const geometriesData = Object.values(loadedGeometries).map((geometry) =>
+    const geometriesData = Object.values(this.voxelGeometries).map((geometry) =>
       geometry.serialize()
     );
 
@@ -187,13 +200,19 @@ export class VoxelGeometryManager {
     });
   }
 
-  updateVoxelShaderData() {
+  async updateVoxelShaderData() {
     if (this.needsUpdate) {
       this.needsUpdate = false;
-      this.update().then(console.log("Update complete"));
+      this.isUpdating = true;
+      await this.update();
+      this.isUpdating = false;
     }
-    const loadedGeoms = this.#getLoadedGeometries();
-    const { dataTexture, textureWidth } = this.#prepareShaderData(loadedGeoms);
+    if (this.isUpdating) {
+      return;
+    }
+    const { dataTexture, textureWidth } = this.#prepareShaderData(
+      this.voxelGeometries
+    );
     this.shaderData = dataTexture;
     this.textureWidth = textureWidth;
     const { lightTexture, lightTextureSize } =
@@ -205,27 +224,13 @@ export class VoxelGeometryManager {
     this.lightTextureSize = lightTextureSize;
   }
 
-  #getLoadedGeometries() {
-    // Filter out entries where the geometry has 'loading: true'
-    const loadedGeometries = Object.entries(this.voxelGeometries)
-      .filter(([_, geom]) => !geom.loading)
-      .reduce((acc, [id, geom]) => {
-        // Accumulate entries back into an object
-        acc[id] = geom;
-        return acc;
-      }, {});
-
-    return loadedGeometries;
-  }
-
   /**
    * Assigns positions to voxel geometry textures.
    * @param {*} voxelGeometries
    * @param {*} maxTextureDimensions
    */
   #packVoxelGeometries() {
-    const loadedGeoms = this.#getLoadedGeometries();
-    const geometriesArray = Object.values(loadedGeoms);
+    const geometriesArray = Object.values(this.voxelGeometries);
     let currentSize = { x: 0, y: 0, z: 0 };
     let rowHeight = 0,
       layerDepth = 0;
@@ -361,9 +366,6 @@ export class VoxelGeometryManager {
 
     // eslint-disable-next-line no-unused-vars
     Object.values(voxelGeometries).forEach((geom, _) => {
-      if (geom.loading) {
-        return;
-      }
       const voxelFloats = geom.toFloatArray();
       if (!voxelFloats) {
         return;
