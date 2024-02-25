@@ -11,6 +11,9 @@ uniform int uNumberOfVoxelGeometries;
 uniform sampler2D uVoxelDataTexture;
 uniform float uVoxelDataTextureWidth;
 
+uniform sampler2D uBVHTexture;
+uniform float uBVHTextureSize;
+
 uniform sampler2D uVoxelLightTexture;
 uniform int uNumberOfVoxelLights;
 uniform float uVoxelLightTextureSize;
@@ -18,6 +21,31 @@ uniform float uVoxelLightTextureSize;
 vec3 emission = vec3(1);
 vec3 yellowLightColor = vec3(1.0, 0.8, 0.2) * 2.0;
 const float dataSize = 7.0;
+
+// Function to calculate UV coordinates for accessing the BVH texture
+vec2 indexToUV(int index) {
+	float pixelIndex = float(index) * 2.0; // Assuming 2 pixels per node data
+	float u = mod(pixelIndex, uBVHTextureSize) / uBVHTextureSize;
+	float v = floor(pixelIndex / uBVHTextureSize) / uBVHTextureSize;
+	return vec2(u, v);
+}
+
+// Function to retrieve bounding box min and max vectors for a node
+void getBoundingBox(int index, out vec3 min, out vec3 max) {
+	vec2 uvMin = indexToUV(index * 2); // Even indices for min
+	vec2 uvMax = indexToUV(index * 2 + 1); // Odd indices for max
+	vec4 packedMin = texture(uBVHTexture, uvMin);
+	vec4 packedMax = texture(uBVHTexture, uvMax);
+	min = packedMin.xyz;
+	max = packedMax.xyz;
+}
+
+// Function to get children indices for a node
+ivec2 getChildrenIndices(int index) {
+	vec2 uvIndices = indexToUV((index + 1) * 2); // Assuming children indices follow the bounding box data
+	vec4 packedIndices = texture(uBVHTexture, uvIndices);
+	return ivec2(packedIndices.xy);
+}
 
 float getDataTextureWidth() {
 	return float((float(uNumberOfVoxelGeometries + 1) * dataSize) + dataSize);
@@ -114,6 +142,47 @@ Box boxes[N_BOXES];
 #include <pathtracing_sphere_intersect>
 
 #include <pathtracing_sample_sphere_light>
+
+float traverseBVH(vec3 rayOrigin, vec3 rayDirection) {
+	const int STACK_SIZE = 32; // Adjust based on your BVH depth
+	int stack[STACK_SIZE];
+	int stackPtr = 0;
+	stack[stackPtr++] = 0; // Push root node index
+
+	float closestHitDistance = INFINITY; // Keep track of the closest hit distance
+
+	while(stackPtr > 0) {
+		int nodeIndex = stack[--stackPtr]; // Pop node index
+		if(nodeIndex < 0)
+			continue; // Invalid index check
+
+		vec3 bboxMin, bboxMax;
+		getBoundingBox(nodeIndex, bboxMin, bboxMax);
+
+		float hitDistance = BoxIntersect(bboxMin, bboxMax, rayOrigin, rayDirection);
+
+		if(hitDistance >= 0.0 && hitDistance < closestHitDistance) {
+			ivec2 children = getChildrenIndices(nodeIndex);
+
+            // If it's not a leaf node, push children to stack
+			if(!isLeafNode(nodeIndex)) {
+				if(children.x >= 0)
+					stack[stackPtr++] = children.x;
+				if(children.y >= 0)
+					stack[stackPtr++] = children.y;
+			} else {
+                // If it's a leaf node, perform intersection tests with geometries within this node
+				for(int i = 0; i < numberOfGeometriesInLeafNode(nodeIndex); i++) {
+					int geometryIndex = getGeometryIndexFromLeafNode(nodeIndex, i);
+                    // Here, you would perform specific intersection tests with the geometry
+                    // and update closestHitDistance if a closer intersection is found
+				}
+			}
+		}
+	}
+
+	return closestHitDistance; // Return the closest hit distance or INFINITY if no hit
+}
 
 Box getLightData(int lightIndex) {
 	float N = float(uVoxelLightTextureSize);

@@ -149,7 +149,7 @@ export class VoxelGeometry {
     voxelTexture.generateMipmaps = false;
 
     // Create a box geometry that encompasses the voxel space
-    const boxGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
+    this.boxGeometry = new THREE.BoxGeometry(size.x, size.y, size.z);
 
     // Modify the voxelMaterial to use the voxelTexture
     const voxelMaterial = new THREE.MeshPhysicalMaterial({
@@ -158,7 +158,7 @@ export class VoxelGeometry {
       side: THREE.DoubleSide, // Render both sides of each face
     });
 
-    let voxelMesh = new THREE.Mesh(boxGeometry, voxelMaterial);
+    let voxelMesh = new THREE.Mesh(this.boxGeometry, voxelMaterial);
 
     // Not needed for ray tracing, since we will be interpreting a 3D texture to render.
     voxelMesh.visible = false;

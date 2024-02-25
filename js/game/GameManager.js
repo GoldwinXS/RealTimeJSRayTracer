@@ -9,7 +9,7 @@ export class GameManager {
   tieFile = "../../models/tie.vox";
   starDestroyerFile = "../../models/destroyer.vox";
   falconFile = "../../models/falcon.vox";
-  deathStarChunk = "../../models/deathStarChunk.vox";
+  deathStarChunk = "../../models/deathStarChunk2.vox";
   BlasterBoltFile = "../../models/blasterBolt.vox";
   transparentCubeFile = "../../models/transparentCube.vox";
   metalCubeFile = "../../models/metalCube.vox";
@@ -151,7 +151,7 @@ export class GameManager {
   }
 
   async setupTrench() {
-    const trenchLength = 1; // Define the length of the trench
+    const trenchLength = 10; // Define the length of the trench
     const trenchScale = 100; // Scaling factor for each chunk
     const scaledSize = 40 * trenchScale; // Calculate the scaled size of each chunk
 
@@ -207,13 +207,13 @@ export class GameManager {
     this.voxelManager.setGeomRotation(this.playerId, "x", -90);
     this.playerGeometry = this.voxelManager.voxelGeometries[this.playerId];
 
-    [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
-      this.voxelManager.addGeometry(
-        this.transparentCubeFile,
-        new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
-        50
-      );
-    });
+    // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
+    //   this.voxelManager.addGeometry(
+    //     this.transparentCubeFile,
+    //     new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
+    //     50
+    //   );
+    // });
 
     // Add a lights
     this.setupTrench();

@@ -188,6 +188,14 @@ function animate() {
   // Update scene specific uniforms
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
 
+  pathTracingUniforms.uBVHTexture = {
+    value: sceneSettings.voxels.voxelManager.uBVHTexture,
+  };
+
+  pathTracingUniforms.uBVHTextureSize = {
+    value: sceneSettings.voxels.voxelManager.uBVHTextureSize,
+  };
+
   pathTracingUniforms.voxelTexture = {
     value: sceneSettings.voxels.voxelManager.voxelTexture,
   };

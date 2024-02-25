@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { VoxelGeometry } from "./VoxelGeometry";
+import { BVHManager } from "./BVHManager";
 
 /**
  * VoxelGeometryManager handles the creation, management, and rendering preparation of multiple voxel geometries.
@@ -47,6 +48,7 @@ export class VoxelGeometryManager {
   currentVoxelIndex = 0;
   totalVoxelGeometries = 0;
   textureWidth;
+  bvh = new BVHManager();
 
   constructor() {
     this.worker = new Worker(
@@ -82,7 +84,7 @@ export class VoxelGeometryManager {
       if (geom) {
         if (typeof geom.deserialize === "function") {
           geom.deserialize(serializedGeom);
-          this.updateVoxelShaderData();
+          // this.updateVoxelShaderData();
         }
       } else {
         console.warn(`Geometry with id ${serializedGeom.id} not found.`);
@@ -125,7 +127,7 @@ export class VoxelGeometryManager {
 
       geom.id = currentId;
       this.voxelGeometries[currentId] = geom;
-
+      this.bvh.addGeometry(geom);
       return currentId;
     } catch (error) {
       console.error(`Could not add geometry: ${error}`);
@@ -141,7 +143,7 @@ export class VoxelGeometryManager {
     if (geom) {
       delete this.voxelGeometries[id];
       this.totalVoxelGeometries--;
-      this.needsUpdate = true;
+      // this.needsUpdate = true;
     } else {
       console.warn(`Geometry ${id} not found.`);
     }
@@ -149,12 +151,12 @@ export class VoxelGeometryManager {
 
   setGeomPosition(id, position) {
     this.voxelGeometries[id].setPosition(position);
-    this.updateVoxelShaderData();
+    // this.updateVoxelShaderData();
   }
 
   setGeomRotation(id, input, degrees) {
     this.voxelGeometries[id].setRotation(input, degrees);
-    this.updateVoxelShaderData();
+    // this.updateVoxelShaderData();
   }
 
   /**
@@ -200,10 +202,27 @@ export class VoxelGeometryManager {
     });
   }
 
+  #createBVH() {
+    const node = this.bvh.constructBVH(this.voxelGeometries, 10);
+    const { boundingBoxes, childrenIndices } =
+      this.bvh.flattenBVHForShader(node);
+    const uBVHTexture = this.bvh.encodeBVHToTexture(
+      boundingBoxes,
+      childrenIndices
+    );
+    this.uBVHTexture = uBVHTexture;
+    this.uBVHTextureSize = new THREE.Vector2(
+      uBVHTexture.source.data.width,
+      uBVHTexture.source.data.height
+    );
+  }
+
   async updateVoxelShaderData() {
-    if (this.needsUpdate) {
+    if (this.needsUpdate && !this.isUpdating) {
       this.needsUpdate = false;
       this.isUpdating = true;
+      this.#createBVH();
+
       await this.update();
       this.isUpdating = false;
     }
