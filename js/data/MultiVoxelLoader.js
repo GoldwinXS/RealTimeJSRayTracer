@@ -112,7 +112,8 @@ export class VoxelGeometryManager {
       if (this.cachedGeometries[filepath]) {
         geom = VoxelGeometry.cloneFromInstance(
           position,
-          this.cachedGeometries[filepath]
+          this.cachedGeometries[filepath],
+          voxelSize
         );
       } else {
         // Create a new geometery
@@ -127,7 +128,7 @@ export class VoxelGeometryManager {
 
       geom.id = currentId;
       this.voxelGeometries[currentId] = geom;
-      this.bvh.addGeometry(geom);
+      // this.bvh.addGeometry(geom);
       return currentId;
     } catch (error) {
       console.error(`Could not add geometry: ${error}`);
@@ -143,7 +144,6 @@ export class VoxelGeometryManager {
     if (geom) {
       delete this.voxelGeometries[id];
       this.totalVoxelGeometries--;
-      // this.needsUpdate = true;
     } else {
       console.warn(`Geometry ${id} not found.`);
     }
@@ -151,12 +151,10 @@ export class VoxelGeometryManager {
 
   setGeomPosition(id, position) {
     this.voxelGeometries[id].setPosition(position);
-    // this.updateVoxelShaderData();
   }
 
   setGeomRotation(id, input, degrees) {
     this.voxelGeometries[id].setRotation(input, degrees);
-    // this.updateVoxelShaderData();
   }
 
   /**
@@ -203,28 +201,19 @@ export class VoxelGeometryManager {
   }
 
   #createBVH() {
-    const node = this.bvh.constructBVH(this.voxelGeometries, 10);
-    const { boundingBoxes, childrenIndices } =
-      this.bvh.flattenBVHForShader(node);
-    const uBVHTexture = this.bvh.encodeBVHToTexture(
-      boundingBoxes,
-      childrenIndices
-    );
-    this.uBVHTexture = uBVHTexture;
-    this.uBVHTextureSize = new THREE.Vector2(
-      uBVHTexture.source.data.width,
-      uBVHTexture.source.data.height
-    );
+    const node = this.bvh.constructBVH(Object.values(this.voxelGeometries), 0);
+    this.uBVHTexture = this.bvh.nodeToTexture(node);
+    this.uBVHTextureSize = this.uBVHTexture.source.data.width;
   }
 
   async updateVoxelShaderData() {
     if (this.needsUpdate && !this.isUpdating) {
       this.needsUpdate = false;
       this.isUpdating = true;
-      this.#createBVH();
-
       await this.update();
+      // this.#prepareShaderData(this.voxelGeometries);
       this.isUpdating = false;
+      this.#createBVH();
     }
     if (this.isUpdating) {
       return;
@@ -236,9 +225,6 @@ export class VoxelGeometryManager {
     this.textureWidth = textureWidth;
     const { lightTexture, lightTextureSize } =
       this.#encodeLightsIntoDataTexture();
-    if (this.totalLights == 0) {
-      console.log("?");
-    }
     this.lightTexture = lightTexture;
     this.lightTextureSize = lightTextureSize;
   }
@@ -386,11 +372,10 @@ export class VoxelGeometryManager {
     // eslint-disable-next-line no-unused-vars
     Object.values(voxelGeometries).forEach((geom, _) => {
       const voxelFloats = geom.toFloatArray();
-      if (!voxelFloats) {
-        return;
-      }
       for (let i = 0; i < voxelFloats.length; i++) {
-        data[dataIndex++] = voxelFloats[i];
+        geom.dataIndex = dataIndex;
+        data[dataIndex] = voxelFloats[i];
+        dataIndex++;
       }
     });
 

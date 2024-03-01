@@ -85,9 +85,11 @@ export class VoxelGeometry {
       const { voxelMesh, voxelTexture, voxelMaterial } =
         geometry.#createVoxelTextureAndMesh(voxelData, size, position);
       geometry.mesh = voxelMesh;
+      // geometry.mesh.scale.addScalar(voxelSize);
       geometry.material = voxelMaterial;
       geometry.texture = voxelTexture;
       this.needsUpdate = true;
+
       return geometry;
     } catch (error) {
       console.error("Error creating VoxelGeometry:", error);
@@ -95,30 +97,35 @@ export class VoxelGeometry {
     }
   }
 
-  static cloneFromInstance(position, instance) {
-    const newGeometry = new VoxelGeometry(
-      instance.filepath,
-      position,
-      instance.voxelSize
-    );
+  static cloneFromInstance(position, instance, voxelSize) {
+    try {
+      const newGeometry = new VoxelGeometry(
+        instance.filepath,
+        position,
+        voxelSize
+      );
 
-    // Directly copying properties
-    newGeometry.gridDimensions = instance.gridDimensions;
-    newGeometry.material = instance.material.clone();
-    newGeometry.mesh = instance.mesh.clone();
-    newGeometry.voxelSize = instance.voxelSize;
-    newGeometry.texture = instance.texture;
-    newGeometry.voxelData = instance.voxelData;
-    // newGeometry.material = voxelMaterial;
-    newGeometry.needsUpdate = true;
-    newGeometry.textureMaxPosition = instance.textureMaxPosition.clone();
-    newGeometry.textureMaxPositionNormalized =
-      instance.textureMaxPositionNormalized.clone();
-    newGeometry.textureMinPosition = instance.textureMinPosition.clone();
-    newGeometry.textureMinPositionNormalized =
-      instance.textureMinPositionNormalized.clone();
-
-    return newGeometry;
+      // Directly copying properties
+      newGeometry.gridDimensions = instance.gridDimensions;
+      newGeometry.material = instance.material.clone();
+      newGeometry.mesh = instance.mesh.clone();
+      newGeometry.voxelSize = voxelSize;
+      newGeometry.texture = instance.texture;
+      newGeometry.voxelData = instance.voxelData;
+      // newGeometry.material = voxelMaterial;
+      newGeometry.needsUpdate = true;
+      newGeometry.textureMaxPosition = instance?.textureMaxPosition?.clone();
+      newGeometry.textureMaxPositionNormalized =
+        instance?.textureMaxPositionNormalized?.clone();
+      newGeometry.textureMinPosition = instance?.textureMinPosition?.clone();
+      newGeometry.textureMinPositionNormalized =
+        instance?.textureMinPositionNormalized?.clone();
+      newGeometry.mesh.position.set(position.x, position.y, position.z);
+      return newGeometry;
+    } catch (error) {
+      console.log(`Could not clone geometry for: ${instance?.filepath}`);
+      throw error;
+    }
   }
 
   /**
@@ -304,83 +311,85 @@ export class VoxelGeometry {
    * @returns {Float32Array} - Data needed for shader structs.
    */
   toFloatArray() {
-    // Compare matrixWorld for overall transformation changes
-    const matrixWorldChanged = this.float32Data?.matrixWorld
-      ? !this.mesh.matrixWorld.equals(this.float32Data?.matrixWorld)
-      : true;
-    const positionChanged = this.float32Data?.position
-      ? !this.mesh.position.equals(this.float32Data?.position)
-      : true;
+    try {
+      // Compare matrixWorld for overall transformation changes
+      const positionChanged = this.float32Data?.position
+        ? !this.mesh.position.equals(this.float32Data?.position)
+        : true;
 
-    // Compare quaternion for rotation changes
-    const quaternionChanged = this.float32Data?.quaternion
-      ? !this.mesh.quaternion.equals(this.float32Data?.quaternion)
-      : true;
+      // Compare quaternion for rotation changes
+      const quaternionChanged = this.float32Data?.quaternion
+        ? !this.mesh.quaternion.equals(this.float32Data?.quaternion)
+        : true;
 
-    if (
-      this.float32Data.data &&
-      !positionChanged &&
-      !quaternionChanged &&
-      !matrixWorldChanged &&
-      !this.needsUpdate
-    ) {
-      // If neither position, quaternion, nor matrixWorld has changed, return the cached data
-      console.log("update requested" + this.id);
+      if (
+        this.float32Data.data &&
+        !positionChanged &&
+        !quaternionChanged &&
+        !this.needsUpdate
+      ) {
+        // If neither position, quaternion, nor matrixWorld has changed, return the cached data
+        return this.float32Data.data;
+      }
+
+      // Update the cached quaternion and matrixWorld for future comparisons
+      this.float32Data.quaternion = this.mesh.quaternion.clone();
+      this.float32Data.position = this.mesh.position.clone();
+
+      // Ensure we update the mesh coordinates.
+      this.mesh.updateMatrixWorld(true);
+
+      // Invert the world matrix to get the inverse matrix for the shader.
+      const invMatrix = new THREE.Matrix4()
+        .copy(this.mesh.matrixWorld)
+        .invert();
+      const matrixElements = invMatrix.elements;
+      if (!this.float32Data) {
+        this.float32Data = {};
+      }
+      this.float32Data.data = new Float32Array([
+        // 0-4
+        this.voxelSize,
+        this.gridDimensions.x,
+        this.gridDimensions.y,
+        this.gridDimensions.z,
+        // 4-8
+        this.textureMinPositionNormalized?.x,
+        this.textureMinPositionNormalized?.y,
+        this.textureMinPositionNormalized?.z,
+        this.textureMaxPositionNormalized?.x,
+        // 8-12
+        this.textureMaxPositionNormalized?.y,
+        this.textureMaxPositionNormalized?.z,
+        // Padding for easier parsing in the shader
+        0.0,
+        0.0,
+        //
+        // Explicitly set matrix elements to ensure correct order and count
+        matrixElements[0],
+        matrixElements[1],
+        matrixElements[2],
+        matrixElements[3],
+        matrixElements[4],
+        matrixElements[5],
+        matrixElements[6],
+        matrixElements[7],
+        matrixElements[8],
+        matrixElements[9],
+        matrixElements[10],
+        matrixElements[11],
+        matrixElements[12],
+        matrixElements[13],
+        matrixElements[14],
+        matrixElements[15],
+      ]);
+
+      // Ensure the array length matches the shader's expectation, including the matrix
+      // 10 initial values + 2 padding + 16 for the matrix = 28 floats total
       return this.float32Data.data;
+    } catch (error) {
+      console.warn(`Problem exporting data for geometry ${this.id}: ${error}`);
+      throw error;
     }
-
-    // Update the cached quaternion and matrixWorld for future comparisons
-    this.float32Data.quaternion = this.mesh.quaternion.clone();
-    this.float32Data.matrixWorld = this.mesh.matrixWorld.clone();
-
-    // Ensure we update the mesh coordinates.
-    this.mesh.updateMatrixWorld(true);
-
-    // Invert the world matrix to get the inverse matrix for the shader.
-    const invMatrix = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
-    const matrixElements = invMatrix.elements;
-    if (!this.float32Data) {
-      this.float32Data = {};
-    }
-    this.float32Data.data = new Float32Array([
-      // 0-4
-      this.voxelSize,
-      this.gridDimensions.x,
-      this.gridDimensions.y,
-      this.gridDimensions.z,
-      // 4-8
-      this.textureMinPositionNormalized.x,
-      this.textureMinPositionNormalized.y,
-      this.textureMinPositionNormalized.z,
-      this.textureMaxPositionNormalized.x,
-      // 8-12
-      this.textureMaxPositionNormalized.y,
-      this.textureMaxPositionNormalized.z,
-      // Padding for easier parsing in the shader
-      0.0,
-      0.0,
-      //
-      // Explicitly set matrix elements to ensure correct order and count
-      matrixElements[0],
-      matrixElements[1],
-      matrixElements[2],
-      matrixElements[3],
-      matrixElements[4],
-      matrixElements[5],
-      matrixElements[6],
-      matrixElements[7],
-      matrixElements[8],
-      matrixElements[9],
-      matrixElements[10],
-      matrixElements[11],
-      matrixElements[12],
-      matrixElements[13],
-      matrixElements[14],
-      matrixElements[15],
-    ]);
-
-    // Ensure the array length matches the shader's expectation, including the matrix
-    // 10 initial values + 2 padding + 16 for the matrix = 28 floats total
-    return this.float32Data.data;
   }
 }

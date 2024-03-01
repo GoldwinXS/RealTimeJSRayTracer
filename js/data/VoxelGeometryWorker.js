@@ -51,7 +51,7 @@ const compileTextureAtlas = function (data) {
   const totalSize =
     maxTextureDimensions.x * maxTextureDimensions.y * maxTextureDimensions.z;
   const atlasData = new Uint8Array(totalSize * 4); // 4 for RGBA
-
+  // eslint-disable-next-line no-unused-vars
   geometriesArray.forEach((geometry, _) => {
     const size = geometry.gridDimensions;
 
@@ -80,7 +80,6 @@ const compileTextureAtlas = function (data) {
           atlasData[atlasIndex + 2] = blue;
           atlasData[atlasIndex + 3] = alpha > 0 ? 1 : 0;
           const color = { red, green, blue };
-
           const colorKey = getColorKey(color);
           if (specialColors && specialColors[colorKey] && alpha != 0) {
             // Encode the special color int othe alpha channel.

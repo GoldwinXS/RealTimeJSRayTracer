@@ -9,7 +9,7 @@ export class GameManager {
   tieFile = "../../models/tie.vox";
   starDestroyerFile = "../../models/destroyer.vox";
   falconFile = "../../models/falcon.vox";
-  deathStarChunk = "../../models/deathStarChunk2.vox";
+  deathStarChunk = "../../models/deathStarChunk.vox";
   BlasterBoltFile = "../../models/blasterBolt.vox";
   transparentCubeFile = "../../models/transparentCube.vox";
   metalCubeFile = "../../models/metalCube.vox";
@@ -29,7 +29,7 @@ export class GameManager {
   bulletSpeed = 1.1;
 
   trenchStartZ = 0; // Start of the trench (along the Z-axis)
-  trenchEndZ = 4000; // End of the trench (along the Z-axis) - adjust based on your game's scale
+  trenchEndZ = 8000; // End of the trench (along the Z-axis) - adjust based on your game's scale
 
   async spawnTieFighter() {
     const startPosition = new Vector3(
@@ -72,8 +72,6 @@ export class GameManager {
 
   async #setupGame() {
     this.playerGeometry = await this.#setupGeometry();
-    // this.playerGeometry = await this.#setupTestGeometry();
-    // this.#setupOrbitingLights();
   }
 
   async setupPlayerControls() {
@@ -89,7 +87,7 @@ export class GameManager {
       this.playerGeometry.mesh.position
     );
 
-    this.playerControls.firing = false;
+    // this.playerControls.firing = false;
     this.playerControls.shotsSpawned++;
 
     const bulletId = await this.voxelManager.addGeometry(
@@ -117,7 +115,7 @@ export class GameManager {
         this.voxelManager.setGeomPosition(bulletId, bullet.bulletPosition);
       }
       bullet.moveCounter++;
-      if (bullet.moveCounter > 50) {
+      if (bullet.moveCounter > 100) {
         this.voxelManager.removeGeometry(bulletId);
         console.log(`Removing bullet with id ${bulletId} from tracking.`);
         delete this.bullets[bulletId];
@@ -128,20 +126,20 @@ export class GameManager {
   }
 
   handleAnimationFrame() {
-    if (!this.voxelManager || !this.playerControls) {
+    if (!this.voxelManager) {
       return;
     }
     if (!this.voxelManager.voxelGeometries[0]) {
       return;
     }
-    if (this.playerControls.firing) {
-      this.playerControls.firing = false;
-      this.spawnBullet();
-    }
-    if (this.playerControls.spawnShip) {
-      this.spawnTieFighter();
-      this.playerControls.spawnShip = false; // Reset the flag
-    }
+    // if (this.playerControls.firing) {
+    //   this.playerControls.firing = false;
+    //   this.spawnBullet();
+    // }
+    // if (this.playerControls.spawnShip) {
+    //   this.spawnTieFighter();
+    //   this.playerControls.spawnShip = false; // Reset the flag
+    // }
 
     // Move existing TIE fighters
     this.moveTieFighters();
@@ -151,7 +149,7 @@ export class GameManager {
   }
 
   async setupTrench() {
-    const trenchLength = 10; // Define the length of the trench
+    const trenchLength = 1; // Define the length of the trench
     const trenchScale = 100; // Scaling factor for each chunk
     const scaledSize = 40 * trenchScale; // Calculate the scaled size of each chunk
 
@@ -199,15 +197,17 @@ export class GameManager {
   async #setupGeometry() {
     // Add the player.
     this.playerId = await this.voxelManager.addGeometry(
-      this.starshipFile,
+      this.tieFile,
+      // this.sunFile,
+      // new Vector3(0, 1, 0),
       this.veryShortDistance.multiplyScalar(-1),
       1
     );
-    this.voxelManager.setGeomRotation(this.playerId, "z", 90);
-    this.voxelManager.setGeomRotation(this.playerId, "x", -90);
+    this.voxelManager.setGeomRotation(this.playerId, "z", 50);
+    // this.voxelManager.setGeomRotation(this.playerId, "x", -90);
     this.playerGeometry = this.voxelManager.voxelGeometries[this.playerId];
 
-    // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
+    // [100, 200].forEach(async (posX) => {
     //   this.voxelManager.addGeometry(
     //     this.transparentCubeFile,
     //     new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
@@ -216,36 +216,64 @@ export class GameManager {
     // });
 
     // Add a lights
-    this.setupTrench();
-    this.voxelManager.addGeometry(
-      this.sunFile,
-      new Vector3(0, 1000000, 0),
-      500000
+    // await this.setupTrench();
+    // await this.voxelManager.addGeometry(
+    //   this.sunFile,
+    //   new Vector3(0, 1000000, 0),
+    //   500000
+    // );
+
+    await this.voxelManager.addGeometry(
+      this.tealSunFile,
+      new Vector3(0, 0, 100),
+      5
     );
 
-    // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
-    //   this.voxelManager.addGeometry(
+    await this.voxelManager.addGeometry(
+      this.tealSunFile,
+      new Vector3(0, 0, -100),
+      50
+    );
+
+    await this.voxelManager.addGeometry(
+      this.redSunFile,
+      new Vector3(0, -10, 1),
+      3
+    );
+    // await this.voxelManager.addGeometry(
+    //   this.tealSunFile,
+    //   new Vector3(5, 2, 5),
+    //   1
+    // );
+    // [100, 200, 300, 400, 500, 600].forEach(async (posX) => {
+    //   await this.voxelManager.addGeometry(
     //     [this.redSunFile, this.tealSunFile, this.sunFile][
     //       Math.round(Math.random() * 2)
     //     ],
-    //     new Vector3(Math.random() * 300, Math.random() * 300, posX),
-    //     50
+    //     new Vector3(Math.random() * 100, Math.random() * 100, posX),
+    //     100
     //   );
     // });
 
     // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
-    //   this.voxelManager.addGeometry(
-    //     this.transparentCubeFile,
-    //     new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
-    //     50
+    //   await this.voxelManager.addGeometry(
+    //     this.starDestroyerFile,
+    //     new Vector3(1000 * posX, Math.random() * 3000 + 2000, 0),
+    //     5
     //   );
     // });
 
-    // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
-    //   this.voxelManager.addGeometry(
-    //     this.metalCubeFile,
+    let numbers = [];
+    for (let i = 1; i <= 4; i++) {
+      numbers.push(i * 100);
+    }
+    console.log(numbers);
+
+    // numbers.forEach(async (posX) => {
+    //   await this.voxelManager.addGeometry(
+    //     this.starshipFile,
     //     new Vector3(posX - 600, Math.random() * 1000, Math.random() * 1000),
-    //     50
+    //     1
     //   );
     // });
 
@@ -273,6 +301,5 @@ export class GameManager {
     // await this.voxelManager.addGeometry(this.tealSunFile, this.distanceUp, 100);
 
     // await this.voxelManager.update();
-    return this.voxelManager.voxelGeometries[this.playerId];
   }
 }

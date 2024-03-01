@@ -102,6 +102,7 @@ VoxelGeometry getVoxelGeometry(int voxelIndex) {
 const float epsilon = 0.0001;
 
 #define N_BOXES 4
+#define MAX_DEPTH 64
 
 //-----------------------------------------------------------------------
 
@@ -137,51 +138,92 @@ Box boxes[N_BOXES];
 
 #include <pathtracing_box_intersect>
 
+#include <pathtracing_boundingbox_intersect>
+
 #include <pathtracing_box_interior_intersect>
 
 #include <pathtracing_sphere_intersect>
 
 #include <pathtracing_sample_sphere_light>
 
-float traverseBVH(vec3 rayOrigin, vec3 rayDirection) {
-	const int STACK_SIZE = 32; // Adjust based on your BVH depth
-	int stack[STACK_SIZE];
+bool testRayBoxIntersection(vec3 minCorner, vec3 maxCorner, vec3 rayOrigin, vec3 rayDirection, out float t) {
+	vec3 invDir = 1.0 / rayDirection; // Inverse of ray direction
+	vec3 tMin = (minCorner - rayOrigin) * invDir;
+	vec3 tMax = (maxCorner - rayOrigin) * invDir;
+
+	vec3 t1 = min(tMin, tMax);
+	vec3 t2 = max(tMin, tMax);
+
+	float tNear = max(max(t1.x, t1.y), t1.z);
+	float tFar = min(min(t2.x, t2.y), t2.z);
+
+	if(tNear > tFar || tFar < 0.0) {
+		return false; // No intersection
+	}
+
+	t = tNear > 0.0 ? tNear : tFar; // Use tNear if it's positive, otherwise use tFar
+	return t >= 0.0; // Intersection occurs if t is non-negative
+}
+
+struct NodeData {
+	int index;
+	int nextIndexR;
+	int nextIndexL;
+	vec3 minCorner;
+	vec3 maxCorner;
+	bool isLeaf;
+	mat4 invMatrix;
+};
+
+NodeData getBVHNode(int index) {
+	float pixelIndex = float(index * 6); // Start index for this node's data
+
+	vec4 data[6]; // Array to store fetched data
+	for(int i = 0; i < 6; i++) {
+		float x = mod(pixelIndex + float(i), uBVHTextureSize);
+		float y = floor((pixelIndex + float(i)) / uBVHTextureSize);
+		vec2 uv = vec2(x, y) / uBVHTextureSize;
+		data[i] = texture(uBVHTexture, uv);
+	}
+
+    // Interpretation based on updated rules
+	bool isLeaf = int(data[0].x) == -1;
+	int childIndexL = isLeaf ? -1 : int(data[0].x); // Use x for left child index if not a leaf
+	int childIndexR = int(data[0].y); // Always use y for right child index
+
+	vec3 minCorner = vec3(data[0].z, data[0].w, data[1].x);
+	vec3 maxCorner = vec3(data[1].y, data[1].z, data[1].w);
+
+	mat4 invMatrix = mat4(data[2], data[3], data[4], data[5]);
+
+    // Assuming 'index' should actually reflect this node's position in some global structure or ID
+	NodeData nodeData = NodeData(childIndexR, childIndexR, childIndexL, minCorner, maxCorner, isLeaf, invMatrix);
+	return nodeData;
+}
+
+int TraverseBVHTree(vec3 rayOrigin, vec3 rayDirection, float t, vec3 normal, int isRayExiting) {
+	float d;
+	int stack[MAX_DEPTH];
 	int stackPtr = 0;
-	stack[stackPtr++] = 0; // Push root node index
-
-	float closestHitDistance = INFINITY; // Keep track of the closest hit distance
-
-	while(stackPtr > 0) {
-		int nodeIndex = stack[--stackPtr]; // Pop node index
-		if(nodeIndex < 0)
-			continue; // Invalid index check
-
-		vec3 bboxMin, bboxMax;
-		getBoundingBox(nodeIndex, bboxMin, bboxMax);
-
-		float hitDistance = BoxIntersect(bboxMin, bboxMax, rayOrigin, rayDirection);
-
-		if(hitDistance >= 0.0 && hitDistance < closestHitDistance) {
-			ivec2 children = getChildrenIndices(nodeIndex);
-
-            // If it's not a leaf node, push children to stack
-			if(!isLeafNode(nodeIndex)) {
-				if(children.x >= 0)
-					stack[stackPtr++] = children.x;
-				if(children.y >= 0)
-					stack[stackPtr++] = children.y;
+	stack[stackPtr++] = 0;
+	int closestLeafIndex = -1;
+	float closestLeafDistance = t;
+	for(int i = 1; i < 16; i++) {
+		int currentIndex = stack[--stackPtr]; // Pop the top node off the stack
+		NodeData node = getBVHNode(currentIndex);
+		d = BoundingBoxIntersect(node.minCorner, node.maxCorner, rayOrigin, 1.0 / rayDirection);
+		if(d < t) {
+			if(node.isLeaf && d < closestLeafDistance) {
+				closestLeafDistance = d;
+				t = d;
+				closestLeafIndex = node.index;
 			} else {
-                // If it's a leaf node, perform intersection tests with geometries within this node
-				for(int i = 0; i < numberOfGeometriesInLeafNode(nodeIndex); i++) {
-					int geometryIndex = getGeometryIndexFromLeafNode(nodeIndex, i);
-                    // Here, you would perform specific intersection tests with the geometry
-                    // and update closestHitDistance if a closer intersection is found
-				}
+				stack[stackPtr++] = node.nextIndexR;
+				stack[stackPtr++] = node.nextIndexL;
 			}
 		}
 	}
-
-	return closestHitDistance; // Return the closest hit distance or INFINITY if no hit
+	return closestLeafIndex; // No intersection found
 }
 
 Box getLightData(int lightIndex) {
@@ -355,6 +397,81 @@ vec3 sampleBoxLight(vec3 x, vec3 nl, Box light, out float weight) {
 	return dirToRandomPointOnLight;
 }
 
+struct HitInfo {
+	float distance;
+	vec3 hitColor;
+	int hitType;
+	vec3 hitNormal;
+	vec3 hitEmission;
+	float hitObjectID;
+	bool hasHit; // Indicates whether a hit was found
+};
+
+HitInfo TraceVoxel(vec3 rayOrigin, vec3 rayDirection, int voxelIndex, int objectCount, float t) {
+	HitInfo hitInfo = HitInfo(INFINITY, vec3(0), -1, vec3(0), vec3(1), -1.0, false);
+	VoxelGeometry voxelGeometry = getVoxelGeometry(voxelIndex);
+	Box voxelBox = Box(vec3(-voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(0), vec3(1), DIFF);
+	vec3 rObjOrigin = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayOrigin, 1.0));
+	vec3 rObjDirection = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayDirection, 0.0));
+	vec3 normal;
+	int isRayExiting = FALSE;
+
+	float d = BoxIntersect(voxelBox.minCorner, voxelBox.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
+	vec3 rObjOriginOriginal = rObjOrigin;
+	d = BoxIntersect(voxelBox.minCorner, voxelBox.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
+	if(d < t) {
+				// If we have a hit with the volume, then translate the ray so that it is touching the box 
+		if(isRayExiting == FALSE) {
+			rObjOrigin += d * rObjDirection * 1.00001;
+		}
+		// Get the position the voxel was hit at between 0 and voxelGridZise, as well as the ray's position 
+		ivec3 voxelCoords = getVoxelPosition(rObjDirection, rObjOrigin, voxelBox, voxelGeometry);
+		// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
+		if(voxelCoords != ivec3(-1)) {
+
+			// Back off the ray origin so that we don't mistakenly put it inside a voxel 
+			rObjOrigin -= rObjDirection;
+			// Scale voxel coordinate space to voxel model space 
+			vec3 voxelPosition = vec3(voxelCoords) * ((voxelBox.maxCorner - voxelBox.minCorner)) / voxelGeometry.gridDimensions;
+
+					// Transform the voxel position by min corner, that is the voxel's min corner
+			vec3 voxelMinCorner = voxelPosition + voxelBox.minCorner;
+			vec3 voxelMaxCorner = voxelMinCorner + voxelGeometry.voxelSize;
+			d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOriginOriginal, rObjDirection, normal, isRayExiting);
+
+					// Normalize cellIndex to a 0-1 range within the voxel geometry's local space.
+			vec3 normalizedCoords = vec3(voxelCoords) / voxelGeometry.gridDimensions;
+
+					// Map the normalized coordinates to the corresponding segment of the texture atlas.
+					// This is done by scaling the normalized coordinates to the size of the segment (textureMaxPosition - textureMinPosition)
+					// and then translating them to the starting position of the segment (textureMinPosition).
+			vec3 atlasCoords = voxelGeometry.textureMinPosition + normalizedCoords * (voxelGeometry.textureMaxPosition - voxelGeometry.textureMinPosition);
+			vec4 voxelHitColor = texture(voxelTexture, atlasCoords).rgba;
+
+					// Record the hit info. 
+			t = d;
+			// hitColor = voxelHitColor.rgb;
+			// hitType = int(voxelHitColor.a * 255.0);
+			// hitEmission = hitColor;
+			hitInfo.distance = d;
+			hitInfo.hitColor = voxelHitColor.rgb;
+			hitInfo.hitType = int(voxelHitColor.a * 255.0);
+			hitInfo.hitEmission = hitColor;
+
+			if(hitType == 20) {
+				hitInfo.hitType = LIGHT;
+			}
+			hitInfo.hitNormal = transpose(mat3(voxelGeometry.voxelMeshInvMatrix)) * normal;
+			hitInfo.hitObjectID = float(objectCount);
+			hitInfo.hasHit = true;
+		} else {
+			hitInfo.hasHit = false;
+		}
+	}
+
+	return hitInfo;
+}
+
 float SceneIntersect()
 //--------------------------------------------------------------------------------------------------------
 {
@@ -369,82 +486,97 @@ float SceneIntersect()
 
 	int isRayExiting = FALSE;
 
-	// Lights.
-	for(int i = 0; i < uNumberOfVoxelLights; i++) {
-		Box light = getLightData(i);
-		d = BoxIntersect(light.minCorner, light.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
-		if(d < t) {
-			t = d;
-			hitNormal = normal;
-			hitEmission = light.emission;
-			hitColor = light.color;
-			hitType = light.type;
-			hitObjectID = float(objectCount);
-		}
-		objectCount++;
-	}
-
 	// Voxels.
-	// Transform the ray into the coordinateg space of the box containing the voxels.
-	for(int voxelIndex = 0; voxelIndex < uNumberOfVoxelGeometries; voxelIndex++) {
-		VoxelGeometry voxelGeometry = getVoxelGeometry(voxelIndex);
-		Box voxelBox = Box(vec3(-voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(0), vec3(1), DIFF);
-		rObjOrigin = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayOrigin, 1.0));
-		rObjDirection = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayDirection, 0.0));
-		vec3 rObjOriginOriginal = rObjOrigin;
-		// Check if the ray will intersect with the voxel volume at all
-		d = BoxIntersect(voxelBox.minCorner, voxelBox.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
-		if(d < t) {
-			// If we have a hit with the volume, then translate the ray so that it is touching the box 
-			if(isRayExiting == FALSE) {
-				rObjOrigin += d * rObjDirection * 1.00001;
-			}
-			// Get the position the voxel was hit at between 0 and voxelGridZise, as well as the ray's position 
-			ivec3 voxelCoords = getVoxelPosition(rObjDirection, rObjOrigin, voxelBox, voxelGeometry);
-			// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
-			if(voxelCoords != ivec3(-1)) {
+	// for(int node = 0; node < 20; node++) {
+	// 	if(rand() < 0.5) {
+	// 		NodeData rootNode = getBVHNode(node);
+	// 		d = BoxIntersect(rootNode.minCorner, rootNode.maxCorner, rayOrigin, rayDirection, normal, isRayExiting);
+	// 		if(d < t) {
+	// 			t = d;
+	// 			hitNormal = normal;
+	// 			hitEmission = vec3(1.0);
+	// 			hitColor = vec3(1.0, 0.0, 0.0);
+	// 			hitType = DIFF;
+	// 			hitObjectID = float(objectCount);
+	// 		}
+	// 		objectCount++;
+	// 	}
+	// }
 
-				// Back off the ray origin so that we don't mistakenly put it inside a voxel 
-				rObjOrigin -= rObjDirection;
-				// Scale voxel coordinate space to voxel model space 
-				vec3 voxelPosition = vec3(voxelCoords) * ((voxelBox.maxCorner - voxelBox.minCorner)) / voxelGeometry.gridDimensions;
+	// for(int voxelIndex = 0; voxelIndex < uNumberOfVoxelGeometries; voxelIndex++) {
 
-				// Transform the voxel position by min corner, that is the voxel's min corner
-				vec3 voxelMinCorner = voxelPosition + voxelBox.minCorner;
-				vec3 voxelMaxCorner = voxelMinCorner + voxelGeometry.voxelSize;
-				d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOriginOriginal, rObjDirection, normal, isRayExiting);
+	int voxelIndex = TraverseBVHTree(rayOrigin, rayDirection, t, normal, isRayExiting);
+	HitInfo hitInfo = TraceVoxel(rayOrigin, rayDirection, voxelIndex, objectCount, t);
+	if(hitInfo.hasHit) {
+		t = hitInfo.distance;
+		hitColor = hitInfo.hitColor;
+		hitType = hitInfo.hitType;
+		hitEmission = hitInfo.hitEmission;
 
-				// Normalize cellIndex to a 0-1 range within the voxel geometry's local space.
-				vec3 normalizedCoords = vec3(voxelCoords) / voxelGeometry.gridDimensions;
-
-				// Map the normalized coordinates to the corresponding segment of the texture atlas.
-				// This is done by scaling the normalized coordinates to the size of the segment (textureMaxPosition - textureMinPosition)
-				// and then translating them to the starting position of the segment (textureMinPosition).
-				vec3 atlasCoords = voxelGeometry.textureMinPosition + normalizedCoords * (voxelGeometry.textureMaxPosition - voxelGeometry.textureMinPosition);
-				vec4 voxelHitColor = texture(voxelTexture, atlasCoords).rgba;
-
-				// Record the hit info. 
-				t = d;
-				hitColor = voxelHitColor.rgb;
-				hitType = int(voxelHitColor.a * 255.0);
-				hitEmission = hitColor;
-
-				if(hitType == 20) {
-					hitType = LIGHT;
-				}
-				hitNormal = transpose(mat3(voxelGeometry.voxelMeshInvMatrix)) * normal;
-				hitObjectID = float(objectCount);
-				objectCount++;
-			}
+		if(hitType == 20) {
+			hitType = hitInfo.hitType;
 		}
+		hitNormal = hitInfo.hitNormal;
+		hitObjectID = hitInfo.hitObjectID;
 		objectCount++;
 	}
+	// VoxelGeometry voxelGeometry = getVoxelGeometry(voxelIndex);
+	// Box voxelBox = Box(vec3(-voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(0), vec3(1), DIFF);
+	// rObjOrigin = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayOrigin, 1.0));
+	// rObjDirection = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayDirection, 0.0));
+	// vec3 rObjOriginOriginal = rObjOrigin;
+	// d = BoxIntersect(voxelBox.minCorner, voxelBox.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
+	// if(d < t) {
+	// 			// If we have a hit with the volume, then translate the ray so that it is touching the box 
+	// 	if(isRayExiting == FALSE) {
+	// 		rObjOrigin += d * rObjDirection * 1.00001;
+	// 	}
+	// 	// Get the position the voxel was hit at between 0 and voxelGridZise, as well as the ray's position 
+	// 	ivec3 voxelCoords = getVoxelPosition(rObjDirection, rObjOrigin, voxelBox, voxelGeometry);
+	// 	// See if we have hit anything in the voxel mesh, we don't want to record any hit data it we passed through
+	// 	if(voxelCoords != ivec3(-1)) {
+
+	// 		// Back off the ray origin so that we don't mistakenly put it inside a voxel 
+	// 		rObjOrigin -= rObjDirection;
+	// 		// Scale voxel coordinate space to voxel model space 
+	// 		vec3 voxelPosition = vec3(voxelCoords) * ((voxelBox.maxCorner - voxelBox.minCorner)) / voxelGeometry.gridDimensions;
+
+	// 				// Transform the voxel position by min corner, that is the voxel's min corner
+	// 		vec3 voxelMinCorner = voxelPosition + voxelBox.minCorner;
+	// 		vec3 voxelMaxCorner = voxelMinCorner + voxelGeometry.voxelSize;
+	// 		d = BoxIntersect(voxelMinCorner, voxelMaxCorner, rObjOriginOriginal, rObjDirection, normal, isRayExiting);
+
+	// 				// Normalize cellIndex to a 0-1 range within the voxel geometry's local space.
+	// 		vec3 normalizedCoords = vec3(voxelCoords) / voxelGeometry.gridDimensions;
+
+	// 				// Map the normalized coordinates to the corresponding segment of the texture atlas.
+	// 				// This is done by scaling the normalized coordinates to the size of the segment (textureMaxPosition - textureMinPosition)
+	// 				// and then translating them to the starting position of the segment (textureMinPosition).
+	// 		vec3 atlasCoords = voxelGeometry.textureMinPosition + normalizedCoords * (voxelGeometry.textureMaxPosition - voxelGeometry.textureMinPosition);
+	// 		vec4 voxelHitColor = texture(voxelTexture, atlasCoords).rgba;
+
+	// 				// Record the hit info. 
+	// 		t = d;
+	// 		hitColor = voxelHitColor.rgb;
+	// 		hitType = int(voxelHitColor.a * 255.0);
+	// 		hitEmission = hitColor;
+
+	// 		if(hitType == 20) {
+	// 			hitType = LIGHT;
+	// 		}
+	// 		hitNormal = transpose(mat3(voxelGeometry.voxelMeshInvMatrix)) * normal;
+	// 		hitObjectID = float(objectCount);
+	// 		objectCount++;
+	// 	}
+	// }
+	// }
 
 	return t;
 }
 
 vec3 Get_Star_Field_Color(vec3 rDirection) {
-	vec3 baseColor = vec3(0.0); // Dark sky background color
+	// vec3 baseColor = vec3(0.0); // Dark sky background color
+	vec3 baseColor = vec3(1.0); // Dark sky background color
 	float starThreshold = 0.999; // Threshold to reduce the number of stars
 	float scale = 1.0; // Adjust scale to control the density of stars
 
