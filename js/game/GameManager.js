@@ -197,14 +197,14 @@ export class GameManager {
   async #setupGeometry() {
     // Add the player.
     this.playerId = await this.voxelManager.addGeometry(
-      this.tieFile,
+      this.starshipFile,
       // this.sunFile,
       // new Vector3(0, 1, 0),
       this.veryShortDistance.multiplyScalar(-1),
       1
     );
-    this.voxelManager.setGeomRotation(this.playerId, "z", 50);
-    // this.voxelManager.setGeomRotation(this.playerId, "x", -90);
+    this.voxelManager.setGeomRotation(this.playerId, "z", 90);
+    this.voxelManager.setGeomRotation(this.playerId, "x", -90);
     this.playerGeometry = this.voxelManager.voxelGeometries[this.playerId];
 
     // [100, 200].forEach(async (posX) => {
@@ -217,17 +217,17 @@ export class GameManager {
 
     // Add a lights
     // await this.setupTrench();
-    // await this.voxelManager.addGeometry(
-    //   this.sunFile,
-    //   new Vector3(0, 1000000, 0),
-    //   500000
-    // );
-
-    await this.voxelManager.addGeometry(
-      this.tealSunFile,
-      new Vector3(0, 0, 100),
-      5
+    this.voxelManager.addGeometry(
+      this.sunFile,
+      new Vector3(0, 1000000, 0),
+      500000
     );
+
+    // await this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(0, 0, 100),
+    //   5
+    // );
 
     await this.voxelManager.addGeometry(
       this.tealSunFile,
@@ -235,43 +235,42 @@ export class GameManager {
       50
     );
 
-    await this.voxelManager.addGeometry(
-      this.redSunFile,
-      new Vector3(0, -10, 1),
-      3
-    );
     // await this.voxelManager.addGeometry(
-    //   this.tealSunFile,
-    //   new Vector3(5, 2, 5),
+    //   this.tieFile,
+    //   new Vector3(0, -100, 100),
     //   1
     // );
+    await this.voxelManager.addGeometry(
+      this.starshipFile,
+      new Vector3(5, 2, 5),
+      1
+    );
     // [100, 200, 300, 400, 500, 600].forEach(async (posX) => {
     //   await this.voxelManager.addGeometry(
     //     [this.redSunFile, this.tealSunFile, this.sunFile][
     //       Math.round(Math.random() * 2)
     //     ],
-    //     new Vector3(Math.random() * 100, Math.random() * 100, posX),
+    //     new Vector3(Math.random() * 100, Math.random() * 100, posX * 2),
     //     100
     //   );
     // });
 
-    // [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
-    //   await this.voxelManager.addGeometry(
-    //     this.starDestroyerFile,
-    //     new Vector3(1000 * posX, Math.random() * 3000 + 2000, 0),
-    //     5
-    //   );
-    // });
-
-    let numbers = [];
-    for (let i = 1; i <= 4; i++) {
-      numbers.push(i * 100);
-    }
-    console.log(numbers);
+    [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
+      this.voxelManager.addGeometry(
+        this.starDestroyerFile,
+        new Vector3(posX * 3, Math.random() * 2000, Math.random() * 2000),
+        4
+      );
+    });
+    // let numbers = [];
+    // for (let i = 1; i <= 15; i++) {
+    //   numbers.push(i * 100);
+    // }
+    // console.log(numbers);
 
     // numbers.forEach(async (posX) => {
-    //   await this.voxelManager.addGeometry(
-    //     this.starshipFile,
+    //   this.voxelManager.addGeometry(
+    //     this.starDestroyerFile,
     //     new Vector3(posX - 600, Math.random() * 1000, Math.random() * 1000),
     //     1
     //   );
@@ -301,5 +300,6 @@ export class GameManager {
     // await this.voxelManager.addGeometry(this.tealSunFile, this.distanceUp, 100);
 
     // await this.voxelManager.update();
+    return this.playerGeometry;
   }
 }
