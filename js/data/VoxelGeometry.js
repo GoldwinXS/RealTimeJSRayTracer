@@ -28,7 +28,7 @@ export function calculateIndex(x, y, z, width, height) {
  * keeping these details abstracted from the user.
  *
  * @class
- * @param {string} filepath - The filepath where the related .vox file can be found.
+ * @param {string} filename - The filename where the related .vox file can be found.
  * @param {THREE.Vector3} [position=new THREE.Vector3(0, 0, 0)] - The world position of the voxel geometry.
  * @param {number} [voxelSize=1] - The size of each individual voxel. Defaults to 1.
  *
@@ -56,8 +56,8 @@ export class VoxelGeometry {
   id;
   needsUpdate = false;
 
-  constructor(filepath, position = new THREE.Vector3(0, 0, 0), voxelSize = 1) {
-    this.filepath = filepath;
+  constructor(filename, position = new THREE.Vector3(0, 0, 0), voxelSize = 1) {
+    this.filename = filename;
     this.position = position;
     this.voxelSize = voxelSize;
     this.float32Data = {};
@@ -65,19 +65,19 @@ export class VoxelGeometry {
 
   /**
    * A public class method to create an instance of VoxelGeometry. See class docstring for more details.
-   * @param {string} filepath - The filepath for the voxel file.
+   * @param {string} filename - The filename for the voxel file.
    * @param {THREE.Vector3} position - The world position of the voxel geometry.
    * @param {number} voxelSize - The size of each individual voxel.
    * @returns {VoxelGeometry}
    */
   static async create(
-    filepath,
+    filename,
     position = new THREE.Vector3(0, 0, 0),
     voxelSize = 1
   ) {
-    const geometry = new VoxelGeometry(filepath, position, voxelSize);
+    const geometry = new VoxelGeometry(filename, position, voxelSize);
     try {
-      const { voxelData, size } = await geometry.#loadVoxelData(filepath);
+      const { voxelData, size } = await geometry.#loadVoxelData(filename);
       geometry.gridDimensions = size;
       geometry.voxelData = voxelData;
 
@@ -100,7 +100,7 @@ export class VoxelGeometry {
   static cloneFromInstance(position, instance, voxelSize) {
     try {
       const newGeometry = new VoxelGeometry(
-        instance.filepath,
+        instance.filename,
         position,
         voxelSize
       );
@@ -123,7 +123,7 @@ export class VoxelGeometry {
       newGeometry.mesh.position.set(position.x, position.y, position.z);
       return newGeometry;
     } catch (error) {
-      console.log(`Could not clone geometry for: ${instance?.filepath}`);
+      console.log(`Could not clone geometry for: ${instance?.filename}`);
       throw error;
     }
   }
@@ -178,12 +178,12 @@ export class VoxelGeometry {
 
   /**
    * Asynchronously loads voxel data from a file and returns the processed data.
-   * @param {string} filepath - The local filepath to the voxel model.
+   * @param {string} filename - The local filename to the voxel model.
    * @returns {Promise<{voxelData: Uint8Array, size: THREE.Vector3}>} Processed voxel data and its size.
    */
-  async #loadVoxelData(filepath) {
+  async #loadVoxelData(filename) {
     try {
-      const response = await fetch(filepath);
+      const response = await fetch(filename);
       const buffer = await response.arrayBuffer();
       const voxData = readVox(new Uint8Array(buffer));
 

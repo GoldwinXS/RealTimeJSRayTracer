@@ -9,6 +9,7 @@ export class GameManager {
   tieFile = "../../models/tie.vox";
   starDestroyerFile = "../../models/destroyer.vox";
   falconFile = "../../models/falcon.vox";
+  enterpriseFile = "../../models/enterprise.vox";
   deathStarChunk = "../../models/deathStarChunk.vox";
   BlasterBoltFile = "../../models/blasterBolt.vox";
   transparentCubeFile = "../../models/transparentCube.vox";
@@ -149,7 +150,7 @@ export class GameManager {
   }
 
   async setupTrench() {
-    const trenchLength = 50; // Define the length of the trench
+    const trenchLength = 1; // Define the length of the trench
     const trenchScale = 100; // Scaling factor for each chunk
     const scaledSize = 40 * trenchScale; // Calculate the scaled size of each chunk
 
@@ -198,6 +199,7 @@ export class GameManager {
     // Add the player.
     this.playerId = await this.voxelManager.addGeometry(
       this.starshipFile,
+      // this.starDestroyerFile,
       // this.sunFile,
       // new Vector3(0, 1, 0),
       this.veryShortDistance.multiplyScalar(-1),
@@ -207,7 +209,7 @@ export class GameManager {
     this.voxelManager.setGeomRotation(this.playerId, "x", -90);
     this.playerGeometry = this.voxelManager.voxelGeometries[this.playerId];
 
-    // [100, 200].forEach(async (posX) => {
+    // [100, 200, 300, 400, 500, 600, 700, 800].forEach(async (posX) => {
     //   await this.voxelManager.addGeometry(
     //     this.starDestroyerFile,
     //     new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
@@ -310,14 +312,13 @@ export class GameManager {
     //   );
     // });
     // let numbers = [];
-    // for (let i = 1; i <= 5; i++) {
+    // for (let i = 1; i <= 4; i++) {
     //   numbers.push(i * 100);
     // }
-    // // console.log(numbers);
 
     // numbers.forEach(async (posX) => {
-    //   this.voxelManager.addGeometry(
-    //     this.starDestroyerFile,
+    //   await this.voxelManager.addGeometry(
+    //     this.enterpriseFile,
     //     new Vector3(posX - 600, Math.random() * 1000, Math.random() * 1000),
     //     1
     //   );

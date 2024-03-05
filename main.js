@@ -18,6 +18,7 @@ import {
 import { RGBELoader } from "./js/RGBELoader";
 import { GameManager } from "./js/game/GameManager";
 import { FirstPersonCameraControls } from "./js/camera/FirstPersonCameraControls";
+import { materialTypes } from "./js/data/SpecialColorManager";
 
 function initSceneData(sceneSettings) {
   // Initialize Renderer and Context
@@ -349,27 +350,32 @@ function defineSpecialColors(voxelManager) {
   // #define METALCOAT 18
 
   // Tracked Lights
-  voxelManager.addSpecialColor({ red: 208, green: 206, blue: 129 }, 20);
-  voxelManager.addSpecialColor({ red: 255, green: 33, blue: 0 }, 20);
-  voxelManager.addSpecialColor({ red: 0, green: 255, blue: 203 }, 20);
+  let colorManager = voxelManager.specialColorManager;
+  colorManager.addColors(materialTypes.LIGHT, [
+    { red: 208, green: 206, blue: 129 },
+    { red: 255, green: 33, blue: 0 },
+    { red: 0, green: 255, blue: 203 },
+  ]);
 
-  // Lights
-  voxelManager.addSpecialColor({ red: 208, green: 204, blue: 115 }, 19);
-  voxelManager.addSpecialColor({ red: 255, green: 0, blue: 51 }, 19);
+  colorManager.addColors(materialTypes.UNTRACKEDLIGHT, [
+    { red: 208, green: 204, blue: 115 },
+    { red: 255, green: 0, blue: 51 },
+    { red: 225, green: 101, blue: 101 },
+    { red: 148, green: 207, blue: 210 },
+    { red: 228, green: 92, blue: 92 },
+  ]);
 
-  // Untracked Lights
-  voxelManager.addSpecialColor({ red: 225, green: 101, blue: 101 }, 19);
-  voxelManager.addSpecialColor({ red: 148, green: 207, blue: 210 }, 19);
-  voxelManager.addSpecialColor({ red: 228, green: 92, blue: 92 }, 19);
+  colorManager.addColors(materialTypes.METAL, [
+    { red: 109, green: 109, blue: 109 },
+    { red: 102, green: 102, blue: 102 },
+  ]);
 
-  // Metals
-  voxelManager.addSpecialColor({ red: 109, green: 109, blue: 109 }, 3);
-  voxelManager.addSpecialColor({ red: 102, green: 102, blue: 102 }, 3);
-
-  // Glass
-  voxelManager.addSpecialColor({ red: 41, green: 75, blue: 55 }, 2);
-  voxelManager.addSpecialColor({ red: 72, green: 132, blue: 122 }, 2);
-  voxelManager.addSpecialColor({ red: 0, green: 0, blue: 221 }, 2);
+  colorManager.addColors(materialTypes.GLASS, [
+    { red: 41, green: 75, blue: 55 },
+    { red: 41, green: 75, blue: 55 },
+    { red: 72, green: 132, blue: 122 },
+    { red: 0, green: 0, blue: 221 },
+  ]);
 }
 
 async function loadFilesAndStart(sceneSettings) {
