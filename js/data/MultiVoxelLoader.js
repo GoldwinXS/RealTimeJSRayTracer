@@ -321,7 +321,7 @@ export class VoxelGeometryManager {
         geometry.textureMaxPosition.z / this.maxTextureDimensions.z
       );
 
-      this.fileTextureMapping[geometry.filename] = {
+      this.fileTextureMapping[geometry.filepath] = {
         textureMinPosition: geometry.textureMinPosition,
         textureMaxPosition: geometry.textureMaxPosition,
         textureMinPositionNormalized: geometry.textureMinPositionNormalized,

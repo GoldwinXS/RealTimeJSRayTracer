@@ -188,7 +188,7 @@ struct BVHHit {
 	float distance;
 };
 
-#define MAX_HITS 10
+#define MAX_HITS 6
 struct BVHHits {
 	BVHHit hits[MAX_HITS];
 	int count;
@@ -452,21 +452,21 @@ float SceneIntersect() {
 	int objectCount = 0;
 	int isRayExiting = FALSE;
 	// Voxels.
-	for(int node = 0; node < 20; node++) {
-		if(rand() < 0.5) {
-			NodeData rootNode = getBVHNode(node);
-			d = BoxIntersect(rootNode.minCorner, rootNode.maxCorner, rayOrigin, rayDirection, normal, isRayExiting);
-			if(d < t) {
-				t = d;
-				hitNormal = normal;
-				hitEmission = vec3(1.0);
-				hitColor = vec3(1.0, 0.0, 0.0);
-				hitType = DIFF;
-				hitObjectID = float(objectCount);
-			}
-			objectCount++;
-		}
-	}
+	// for(int node = 0; node < 20; node++) {
+	// 	if(rand() < 0.5) {
+	// 		NodeData rootNode = getBVHNode(node);
+	// 		d = BoxIntersect(rootNode.minCorner, rootNode.maxCorner, rayOrigin, rayDirection, normal, isRayExiting);
+	// 		if(d < t) {
+	// 			t = d;
+	// 			hitNormal = normal;
+	// 			hitEmission = vec3(1.0);
+	// 			hitColor = vec3(1.0, 0.0, 0.0);
+	// 			hitType = DIFF;
+	// 			hitObjectID = float(objectCount);
+	// 		}
+	// 		objectCount++;
+	// 	}
+	// }
 
 	    // Use TraverseBVHTree to get all intersections within the BVH.
 	BVHHits hits = TraverseBVHTree(rayOrigin, rayDirection, t, normal, isRayExiting);

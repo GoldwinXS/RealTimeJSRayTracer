@@ -149,7 +149,7 @@ export class GameManager {
   }
 
   async setupTrench() {
-    const trenchLength = 1; // Define the length of the trench
+    const trenchLength = 50; // Define the length of the trench
     const trenchScale = 100; // Scaling factor for each chunk
     const scaledSize = 40 * trenchScale; // Calculate the scaled size of each chunk
 
@@ -208,20 +208,20 @@ export class GameManager {
     this.playerGeometry = this.voxelManager.voxelGeometries[this.playerId];
 
     // [100, 200].forEach(async (posX) => {
-    //   this.voxelManager.addGeometry(
-    //     this.transparentCubeFile,
+    //   await this.voxelManager.addGeometry(
+    //     this.starDestroyerFile,
     //     new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
-    //     50
+    //     1
     //   );
     // });
 
     // Add a lights
-    // await this.setupTrench();
-    this.voxelManager.addGeometry(
+    await this.voxelManager.addGeometry(
       this.sunFile,
       new Vector3(0, 1000000, 0),
       500000
     );
+    // this.setupTrench();
 
     // await this.voxelManager.addGeometry(
     //   this.starshipFile,
@@ -229,22 +229,62 @@ export class GameManager {
     //   5
     // );
 
-    await this.voxelManager.addGeometry(
-      this.tealSunFile,
-      new Vector3(0, 0, -100),
-      50
-    );
+    // await this.voxelManager.addGeometry(
+    //   this.tealSunFile,
+    //   new Vector3(0, 0, -100),
+    //   50
+    // );
 
     // await this.voxelManager.addGeometry(
     //   this.tieFile,
     //   new Vector3(0, -100, 100),
     //   1
     // );
-    await this.voxelManager.addGeometry(
-      this.starshipFile,
-      new Vector3(5, 2, 5),
-      1
-    );
+    // await this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(150, 2, 5),
+    //   1
+    // );
+    // for (let i = 0; i < 5; i++) {
+    //   this.voxelManager.addGeometry(
+    //     this.starshipFile,
+    //     new Vector3(150 * i, 2, 5),
+    //     1
+    //   );
+    //   this.voxelManager.addGeometry(
+    //     this.starshipFile,
+    //     new Vector3(150 * i, 2, 150),
+    //     1
+    //   );
+    // }
+    // await this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(5, 200, 5),
+    //   1
+    // );
+
+    // await this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(150, 2, 5),
+    //   1
+    // );
+
+    // await this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(300, 2, 5),
+    //   1
+    // );
+
+    // await this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(450, 2, 5),
+    //   1
+    // );
+    // await this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(600, 2, 5),
+    //   1
+    // );
     // [100, 200, 300, 400, 500, 600].forEach(async (posX) => {
     //   await this.voxelManager.addGeometry(
     //     [this.redSunFile, this.tealSunFile, this.sunFile][
@@ -255,18 +295,25 @@ export class GameManager {
     //   );
     // });
 
-    [100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(async (posX) => {
-      this.voxelManager.addGeometry(
-        this.starDestroyerFile,
-        new Vector3(posX * 3, Math.random() * 2000, Math.random() * 2000),
-        4
-      );
-    });
+    // [100].forEach(async (posX) => {
+    //   this.voxelManager.addGeometry(
+    //     this.starDestroyerFile,
+    //     new Vector3(posX * 3, Math.random() * 2000, Math.random() * 2000),
+    //     4
+    //   );
+    // });
+    // [100, 200, 300, 400, 500].forEach(async (posX) => {
+    //   this.voxelManager.addGeometry(
+    //     this.starDestroyerFile,
+    //     new Vector3(posX * 3, Math.random() * 2000, Math.random() * 2000),
+    //     4
+    //   );
+    // });
     // let numbers = [];
-    // for (let i = 1; i <= 15; i++) {
+    // for (let i = 1; i <= 5; i++) {
     //   numbers.push(i * 100);
     // }
-    // console.log(numbers);
+    // // console.log(numbers);
 
     // numbers.forEach(async (posX) => {
     //   this.voxelManager.addGeometry(
