@@ -14,7 +14,7 @@ export class SpawnObjectManager {
       return;
     }
     Object.values(this.commands).forEach(async (element) => {
-      await voxelManager.addGeometry(
+      const geomID = await voxelManager.addGeometry(
         element.filePath,
         new THREE.Vector3(
           element.position.x,
@@ -24,11 +24,7 @@ export class SpawnObjectManager {
         element.size
       );
       // For now we're just going to "cheat" and set the rotation so that most models will look right side up
-      voxelManager.setGeomRotation(
-        Object.values(voxelManager.voxelGeometries).length - 1,
-        "x",
-        -90
-      );
+      voxelManager.setGeomRotation(geomID, "x", -90);
     });
     this.commands = {};
   }

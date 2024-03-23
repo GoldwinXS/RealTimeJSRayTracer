@@ -22,7 +22,6 @@ import { SpecialColorManager } from "./SpecialColorManager";
  *
  * @property {THREE.Vector3} maxTextureDimensions - The maximum dimensions of the texture atlas.
  * @property {Object} voxelGeometries - An object storing VoxelGeometry instances.
- * @property {Array} voxelData - An array to store compiled voxel data.
  * @property {THREE.Data3DTexture} voxelTexture - The compiled 3D texture for all voxel geometries.
  * @property {number} currentVoxelIndex - A count of the total voxel geometries managed.
  *
@@ -36,7 +35,6 @@ export class VoxelGeometryManager {
   maxTextureDimensions = new THREE.Vector3(258, 258, 258);
   voxelGeometries = {};
   cachedGeometries = {};
-  voxelData = [];
   lights = {};
   totalLights = 0;
   needsUpdate = false;
@@ -85,7 +83,6 @@ export class VoxelGeometryManager {
       if (geom) {
         if (typeof geom.deserialize === "function") {
           geom.deserialize(serializedGeom);
-          // this.updateVoxelShaderData();
         }
       } else {
         console.warn(`Geometry with id ${serializedGeom.id} not found.`);
@@ -94,6 +91,7 @@ export class VoxelGeometryManager {
 
     this.totalLights = data.totalLights;
     this.lights = data.lights;
+    this.isUpdating = false;
   }
 
   /**
@@ -104,6 +102,7 @@ export class VoxelGeometryManager {
    * @returns {Promise} - A promise that resolves once the geometry is added and loaded.
    */
   async addGeometry(filename, position, voxelSize) {
+    console.log(`Adding ${filename}`);
     try {
       const currentId = this.currentVoxelIndex++;
       this.totalVoxelGeometries++;
@@ -119,20 +118,20 @@ export class VoxelGeometryManager {
       } else {
         // Create a new geometery
         geom = await VoxelGeometry.create(filename, position, voxelSize);
-        this.needsUpdate = true;
 
         // Cache the geometry
         if (!this.cachedGeometries[filename]) {
           this.cachedGeometries[filename] = geom;
         }
       }
-
+      this.needsUpdate = true;
       geom.id = currentId;
       this.voxelGeometries[currentId] = geom;
       // this.bvh.addGeometry(geom);
       return currentId;
     } catch (error) {
-      console.error(`Could not add geometry: ${error}`);
+      console.error(`Could not add geometry for file ${filename}: ${error}`);
+      throw error;
     }
   }
 
@@ -163,6 +162,7 @@ export class VoxelGeometryManager {
    */
   async update() {
     this.textureAtlasBuilder.packVoxelGeometries(this.voxelGeometries);
+    this.#createBVH();
     const geometriesData = Object.values(this.voxelGeometries).map((geometry) =>
       geometry.serialize()
     );
@@ -211,20 +211,28 @@ export class VoxelGeometryManager {
     if (this.needsUpdate && !this.isUpdating) {
       this.needsUpdate = false;
       this.isUpdating = true;
+
       await this.update();
-      this.isUpdating = false;
-      this.#createBVH();
     }
     if (this.isUpdating) {
       return;
     }
-    const { dataTexture, textureWidth } =
-      this.shaderDataBuilder.prepareShaderData(this.voxelGeometries);
-    this.shaderData = dataTexture;
-    this.textureWidth = textureWidth;
-    const { lightTexture, lightTextureSize } =
-      this.shaderDataBuilder.encodeLightsIntoDataTexture(this.lights);
-    this.lightTexture = lightTexture;
-    this.lightTextureSize = lightTextureSize;
+    try {
+      this.textureAtlasBuilder.packVoxelGeometries(this.voxelGeometries);
+
+      const { dataTexture, textureWidth } =
+        this.shaderDataBuilder.prepareShaderData(this.voxelGeometries);
+      const { lightTexture, lightTextureSize } =
+        this.shaderDataBuilder.encodeLightsIntoDataTexture(this.lights);
+      this.shaderData = dataTexture;
+      this.textureWidth = textureWidth;
+
+      this.lightTexture = lightTexture;
+      this.lightTextureSize = lightTextureSize;
+    } catch (error) {
+      console.error(`Could not execute update: ${error}`);
+      this.textureAtlasBuilder.packVoxelGeometries(this.voxelGeometries);
+      throw error;
+    }
   }
 }

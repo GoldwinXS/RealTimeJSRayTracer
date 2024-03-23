@@ -150,8 +150,8 @@ export class GameManager {
   }
 
   async setupTrench() {
-    const trenchLength = 1; // Define the length of the trench
-    const trenchScale = 100; // Scaling factor for each chunk
+    const trenchLength = 2; // Define the length of the trench
+    const trenchScale = 4; // Scaling factor for each chunk
     const scaledSize = 40 * trenchScale; // Calculate the scaled size of each chunk
 
     // Define the width of the open space in the trench for flying
@@ -166,14 +166,14 @@ export class GameManager {
       let positionZ = i * scaledSize; // Position for each chunk along the Z-axis
 
       // Add geometry for the left wall
-      this.voxelManager.addGeometry(
+      await this.voxelManager.addGeometry(
         this.deathStarChunk,
         new Vector3(wallLeftX, -100, positionZ),
         trenchScale
       );
 
       // Add geometry for the right wall
-      this.voxelManager.addGeometry(
+      await this.voxelManager.addGeometry(
         this.deathStarChunk,
         new Vector3(wallRightX, -100, positionZ),
         trenchScale
@@ -186,7 +186,7 @@ export class GameManager {
       for (let j = 0; j < numFloorSegments; j++) {
         // Correctly calculate floorX to start from the edge of the left wall
         let floorX = wallLeftX + j * scaledSize + scaledSize / 2; // Start placing floor segments right after the left wall
-        this.voxelManager.addGeometry(
+        await this.voxelManager.addGeometry(
           this.deathStarChunk,
           new Vector3(floorX, floorY, positionZ),
           trenchScale
@@ -202,14 +202,16 @@ export class GameManager {
       // this.starDestroyerFile,
       // this.sunFile,
       // new Vector3(0, 1, 0),
-      this.veryShortDistance.multiplyScalar(-1),
+      this.distanceUp.multiplyScalar(1),
       1
     );
     this.voxelManager.setGeomRotation(this.playerId, "z", 90);
     this.voxelManager.setGeomRotation(this.playerId, "x", -90);
     this.playerGeometry = this.voxelManager.voxelGeometries[this.playerId];
 
-    // [100, 200, 300, 400, 500, 600, 700, 800].forEach(async (posX) => {
+    // [
+    //   100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300,
+    // ].forEach(async (posX) => {
     //   await this.voxelManager.addGeometry(
     //     this.starDestroyerFile,
     //     new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
@@ -218,19 +220,42 @@ export class GameManager {
     // });
 
     // Add a lights
-    await this.voxelManager.addGeometry(
+    this.voxelManager.addGeometry(
       this.sunFile,
       new Vector3(0, 1000000, 0),
       500000
     );
+
     // this.setupTrench();
 
-    // await this.voxelManager.addGeometry(
+    this.voxelManager.addGeometry(this.starshipFile, new Vector3(0, 0, 200), 1);
+    this.voxelManager.addGeometry(
+      this.starshipFile,
+      new Vector3(0, 200, 400),
+      1
+    );
+    this.voxelManager.addGeometry(this.starshipFile, new Vector3(0, 0, 600), 1);
+    this.voxelManager.addGeometry(this.starshipFile, new Vector3(0, 0, 800), 1);
+    // this.voxelManager.addGeometry(
     //   this.starshipFile,
-    //   new Vector3(0, 0, 100),
-    //   5
+    //   new Vector3(200, 200, 200),
+    //   1
     // );
-
+    // this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(400, 400, 400),
+    //   1
+    // );
+    // this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(600, 600, 600),
+    //   1
+    // );
+    // this.voxelManager.addGeometry(
+    //   this.starshipFile,
+    //   new Vector3(800, 800, 800),
+    //   1
+    // );
     // await this.voxelManager.addGeometry(
     //   this.tealSunFile,
     //   new Vector3(0, 0, -100),
@@ -238,16 +263,16 @@ export class GameManager {
     // );
 
     // await this.voxelManager.addGeometry(
-    //   this.tieFile,
+    //   this.redSunFile,
     //   new Vector3(0, -100, 100),
-    //   1
+    //   50
     // );
     // await this.voxelManager.addGeometry(
     //   this.starshipFile,
     //   new Vector3(150, 2, 5),
     //   1
     // );
-    // for (let i = 0; i < 5; i++) {
+    // for (let i = 0; i < 10; i++) {
     //   this.voxelManager.addGeometry(
     //     this.starshipFile,
     //     new Vector3(150 * i, 2, 5),

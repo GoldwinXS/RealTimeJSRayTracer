@@ -19,6 +19,7 @@ import { RGBELoader } from "./js/RGBELoader";
 import { GameManager } from "./js/game/GameManager";
 import { FirstPersonCameraControls } from "./js/camera/FirstPersonCameraControls";
 import { materialTypes } from "./js/data/SpecialColorManager";
+import { TestChamber } from "./js/game/TestChamber";
 
 function initSceneData(sceneSettings) {
   // Initialize Renderer and Context
@@ -386,8 +387,9 @@ async function loadFilesAndStart(sceneSettings) {
   defineSpecialColors(voxelManager);
 
   // Set up scene settings with the first geometry
-  sceneSettings.gameManager = new GameManager(voxelManager);
-  await sceneSettings.gameManager.startGame();
+  // sceneSettings.gameManager = new GameManager(voxelManager);
+  sceneSettings.gameManager = new TestChamber(voxelManager);
+  await sceneSettings.gameManager.startGame(sceneSettings.worldCamera);
 
   sceneSettings.voxels.voxelGeometry = voxelManager.voxelGeometries[0];
   sceneSettings.voxels.voxelManager = voxelManager;

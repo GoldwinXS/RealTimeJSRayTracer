@@ -189,7 +189,7 @@ export class VoxelGeometry {
 
       return this.#processVoxData(voxData);
     } catch (error) {
-      console.error("Error loading voxel data:", error);
+      console.error(`Error loading voxel data for file: ${filename}, ${error}`);
       throw error;
     }
   }
@@ -347,6 +347,7 @@ export class VoxelGeometry {
       if (!this.float32Data) {
         this.float32Data = {};
       }
+
       this.float32Data.data = new Float32Array([
         // 0-4
         this.voxelSize,
@@ -354,13 +355,13 @@ export class VoxelGeometry {
         this.gridDimensions.y,
         this.gridDimensions.z,
         // 4-8
-        this.textureMinPositionNormalized?.x,
-        this.textureMinPositionNormalized?.y,
-        this.textureMinPositionNormalized?.z,
-        this.textureMaxPositionNormalized?.x,
+        this.textureMinPositionNormalized.x,
+        this.textureMinPositionNormalized.y,
+        this.textureMinPositionNormalized.z,
+        this.textureMaxPositionNormalized.x,
         // 8-12
-        this.textureMaxPositionNormalized?.y,
-        this.textureMaxPositionNormalized?.z,
+        this.textureMaxPositionNormalized.y,
+        this.textureMaxPositionNormalized.z,
         // Padding for easier parsing in the shader
         0.0,
         0.0,
