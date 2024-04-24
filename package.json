@@ -7,7 +7,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "serve": "vite preview"
+    "serve": "vite preview",
+    "test-prod": "yarn serve dist --host --port 3000"
   },
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -18,6 +19,7 @@
     "express": "^4.18.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "serve": "^14.2.1",
     "three": "^0.160.0",
     "vite-plugin-glsl": "^1.2.1",
     "vox-reader": "^2.1.2"
