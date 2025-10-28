@@ -541,7 +541,7 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 			dirToLight = sampleSphereLight(x, nl, testLightSphere, weight);
 			// dirToLight = sampleBoxLight(x, nl, testLight, weight);
 			mask /= diffuseCount == 1 ? 0.6 : 1.0;
-			mask *= weight * float(uNumberOfVoxelLights);
+			mask *= weight * float(uNumberOfVoxelLights) * 111.1;
 
 			rayDirection = dirToLight;
 			rayOrigin = x + nl * uEPS_intersect;
