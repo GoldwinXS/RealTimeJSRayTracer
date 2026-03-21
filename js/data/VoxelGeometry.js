@@ -324,8 +324,6 @@ export class VoxelGeometry {
       !matrixWorldChanged &&
       !this.needsUpdate
     ) {
-      // If neither position, quaternion, nor matrixWorld has changed, return the cached data
-      console.log("update requested" + this.id);
       return this.float32Data.data;
     }
 

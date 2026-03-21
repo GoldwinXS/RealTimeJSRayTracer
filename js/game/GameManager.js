@@ -2,17 +2,17 @@ import { Vector3 } from "three";
 import { PlayerControls } from "../camera/PlayerControls";
 
 export class GameManager {
-  starshipFile = "../../models/xwingColor.vox";
-  sunFile = "../../models/singleVoxelLight.vox";
-  tealSunFile = "../../models/tealLight.vox";
-  redSunFile = "../../models/redLight.vox";
-  tieFile = "../../models/tie.vox";
-  starDestroyerFile = "../../models/destroyer.vox";
-  falconFile = "../../models/falcon.vox";
-  deathStarChunk = "../../models/deathStarChunk.vox";
-  BlasterBoltFile = "../../models/blasterBolt.vox";
-  transparentCubeFile = "../../models/transparentCube.vox";
-  metalCubeFile = "../../models/metalCube.vox";
+  starshipFile = "models/xwingColor.vox";
+  sunFile = "models/singleVoxelLight.vox";
+  tealSunFile = "models/tealLight.vox";
+  redSunFile = "models/redLight.vox";
+  tieFile = "models/tie.vox";
+  starDestroyerFile = "models/destroyer.vox";
+  falconFile = "models/falcon.vox";
+  deathStarChunk = "models/deathStarChunk.vox";
+  BlasterBoltFile = "models/blasterBolt.vox";
+  transparentCubeFile = "models/transparentCube.vox";
+  metalCubeFile = "models/metalCube.vox";
   playerGeometry;
   playerControls;
   originPosition = new Vector3(0, 0, 0);

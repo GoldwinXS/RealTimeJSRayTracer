@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import Stats from 'three/examples/jsm/libs/stats.module.js';
 import { SpawnObjectManager } from "./js/SpawnObjectManager";
 
 export const sceneSettings = {
@@ -62,7 +63,7 @@ export const sceneSettings = {
   cameraInfoElement: document.getElementById("cameraInfo"),
   blueNoiseTexture: null,
   container: null,
-  stats: new window.Stats(),
+  stats: new Stats(),
   quadCamera: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1),
   sceneIsDynamic: true,
   apertureSize: 0.0,

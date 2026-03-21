@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import "./js/pathtracing/PathTracingCommon.js";
 import { onWindowResize } from "./js/WindowEvents";
 import { sceneSettings } from "./settings";
 import {

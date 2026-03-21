@@ -70,7 +70,6 @@ export class VoxelGeometryManager {
   }
 
   handleWorkerUpdateResponse(data) {
-    console.log("handeling update");
     this.voxelTexture = this.#createVoxelTexture(
       data.atlasData,
       this.maxTextureDimensions
@@ -218,7 +217,7 @@ export class VoxelGeometryManager {
     const { lightTexture, lightTextureSize } =
       this.#encodeLightsIntoDataTexture();
     if (this.totalLights == 0) {
-      console.log("?");
+      console.warn("No lights found in scene.");
     }
     this.lightTexture = lightTexture;
     this.lightTextureSize = lightTextureSize;
