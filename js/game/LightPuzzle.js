@@ -3,7 +3,8 @@ import { Vector3 } from "three";
 /**
  * LightPuzzle - A 3-level light placement puzzle game.
  * Player picks up colored lights (E key) and places them on glowing receptor pads.
- * The path tracer handles all the real light physics: color mixing, reflections, refraction.
+ * The path tracer handles all the real light physics: color mixing, reflections, refraction,
+ * and global illumination (color bleeding) that rasterizers cannot reproduce.
  */
 export class LightPuzzle {
   // Model paths (served from public/)
@@ -13,8 +14,12 @@ export class LightPuzzle {
   metalCubeFile = "models/metalCube.vox";
   transparentCubeFile = "models/transparentCube.vox";
   deathStarChunkFile = "models/deathStarChunk.vox";
-  xwingFile = "models/xwingColor.vox";
-  tieFile = "models/tie.vox";
+
+  // Room geometry constants.
+  // deathStarChunk is 40×40×40 voxels. At ROOM_SCALE=18, each chunk = 720 world units.
+  // Interior: x:[-360, 360], y:[0, 400], z:[-600, 0]. Camera starts near z=0.
+  ROOM_SCALE = 18;
+  ROOM_HALF = 360; // (40 * ROOM_SCALE) / 2
 
   // Pickup state
   pickupables = new Set(); // IDs of objects the player can carry
@@ -33,16 +38,16 @@ export class LightPuzzle {
 
   levelDefs = [
     {
-      name: "Level 1 — Into the Light",
-      objective: "Pick up both lights [E] and place them on the glowing markers.",
+      name: "Level 1 — Hall of Mirrors",
+      objective: "Carry the red light [E] to the receptor pad. Watch it reflect off the chrome pillars!",
     },
     {
-      name: "Level 2 — Spectrum",
-      objective: "Place all three lights on their receptor pads.",
+      name: "Level 2 — Through the Glass",
+      objective: "Place both lights on their pads. See light bend through glass — a path tracer exclusive.",
     },
     {
-      name: "Level 3 — Grand Chamber",
-      objective: "Place all four light sources to complete the chamber.",
+      name: "Level 3 — Color Cascade",
+      objective: "Activate the chamber. The colored lights bleed onto the walls — global illumination you can't fake.",
     },
   ];
 
@@ -62,8 +67,8 @@ export class LightPuzzle {
   // Called by main.js after controls are initialized
   setupControls(controls) {
     this.controls = controls;
-    // Start camera at a good vantage point
-    controls.yawObject.position.set(0, 20, 350);
+    // Place camera inside the room, near the entrance, looking toward the back wall
+    controls.yawObject.position.set(0, 80, -50);
   }
 
   // No-ops to match GameManager interface
@@ -89,6 +94,27 @@ export class LightPuzzle {
     this.targets = [];
   }
 
+  // ─── Room builder ─────────────────────────────────────────────────────────
+
+  // Builds a 5-sided enclosed room: floor, ceiling, left wall, right wall, back wall.
+  // Room interior: x:[-360, 360], y:[0, 400], z:[-600, 0].
+  // Camera starts near z=-50 (just inside the entrance), facing negative z.
+  async #buildRoom() {
+    const S = this.ROOM_SCALE;  // 18 → each chunk = 720 world units
+    const H = this.ROOM_HALF;   // 360
+
+    // Floor: top surface at y=0 → chunk center at y=-H
+    await this.addGeom(this.deathStarChunkFile, new Vector3(0, -H, -H), S);
+    // Ceiling: bottom surface at y=400 → chunk center at y=400+H
+    await this.addGeom(this.deathStarChunkFile, new Vector3(0, 400 + H, -H), S);
+    // Left wall: right face at x=-360 → chunk center at x=-(H+H)
+    await this.addGeom(this.deathStarChunkFile, new Vector3(-(H + H), 200, -H), S);
+    // Right wall: left face at x=360 → chunk center at x=H+H
+    await this.addGeom(this.deathStarChunkFile, new Vector3(H + H, 200, -H), S);
+    // Back wall: front face at z=-600 → chunk center at z=-(600+H)
+    await this.addGeom(this.deathStarChunkFile, new Vector3(0, 200, -(600 + H)), S);
+  }
+
   // ─── Level loading ─────────────────────────────────────────────────────────
 
   async loadLevel(index) {
@@ -105,127 +131,84 @@ export class LightPuzzle {
   }
 
   async #setupLevel1() {
-    // Distant sun — ambient sky glow
-    await this.addGeom(this.sunFile, new Vector3(0, 80000, 0), 15000);
+    // Enclosed room — light has nowhere to escape, so bounces accumulate
+    await this.#buildRoom();
 
-    // Decorative xwing hovering in scene
-    const xwingId = await this.addGeom(this.xwingFile, new Vector3(300, 80, -400), 1);
-    this.voxelManager.setGeomRotation(xwingId, "x", -30);
-    this.voxelManager.setGeomRotation(xwingId, "z", 40);
+    // Soft white ceiling light for ambient fill
+    await this.addGeom(this.sunFile, new Vector3(0, 340, -300), 6);
 
-    // A dim overhead fill light (not tracked, just ambient)
-    await this.addGeom(this.sunFile, new Vector3(0, 400, -100), 8);
+    // Two chrome pillars — specular (mirror) reflections.
+    // The red pickup light will visibly reflect off them.
+    await this.addGeom(this.metalCubeFile, new Vector3(-180, 100, -280), 22);
+    await this.addGeom(this.metalCubeFile, new Vector3(180, 100, -280), 22);
 
-    // === Receptor pads (small glowing markers showing where to place lights) ===
-    // Left pad: red tint
-    await this.addGeom(this.redLightFile, new Vector3(-120, -30, -260), 4);
-    // Right pad: teal tint
-    await this.addGeom(this.tealLightFile, new Vector3(120, -30, -260), 4);
+    // Receptor pad: small glowing red marker near the back wall
+    await this.addGeom(this.redLightFile, new Vector3(0, 20, -480), 5);
+    this.targets.push({ position: new Vector3(0, 20, -480), radius: 140 });
 
-    // Target zones (must match pad positions, generous radius)
-    this.targets.push({ position: new Vector3(-120, -30, -260), radius: 130 });
-    this.targets.push({ position: new Vector3(120, -30, -260), radius: 130 });
-
-    // === Door blocking the way forward ===
-    const doorId = await this.addGeom(this.metalCubeFile, new Vector3(0, 0, -420), 11);
-    this.doorIds.push(doorId);
-
-    // === Pickupable lights ===
-    const redId = await this.addGeom(this.redLightFile, new Vector3(-180, 20, 100), 18);
-    const tealId = await this.addGeom(this.tealLightFile, new Vector3(180, 20, 100), 18);
+    // One pickupable red light near the entrance
+    const redId = await this.addGeom(this.redLightFile, new Vector3(0, 60, -100), 14);
     this.pickupables.add(redId);
-    this.pickupables.add(tealId);
   }
 
   async #setupLevel2() {
-    await this.addGeom(this.sunFile, new Vector3(0, 80000, 0), 15000);
+    await this.#buildRoom();
 
-    // Decorative ships
-    const tieId = await this.addGeom(this.tieFile, new Vector3(-380, 60, -500), 1);
-    this.voxelManager.setGeomRotation(tieId, "x", 80);
-    this.voxelManager.setGeomRotation(tieId, "z", 70);
+    // Dimmer overhead light — lets the colored lights stand out more
+    await this.addGeom(this.sunFile, new Vector3(0, 340, -300), 4);
 
-    const xwingId = await this.addGeom(this.xwingFile, new Vector3(350, -20, -600), 1);
-    this.voxelManager.setGeomRotation(xwingId, "x", -30);
-    this.voxelManager.setGeomRotation(xwingId, "z", -50);
+    // Chrome pillars on each side
+    await this.addGeom(this.metalCubeFile, new Vector3(-200, 80, -200), 20);
+    await this.addGeom(this.metalCubeFile, new Vector3(200, 80, -200), 20);
 
-    // Decorative mirror cubes (not pickupable — they look great reflecting the lights)
-    await this.addGeom(this.metalCubeFile, new Vector3(-250, 30, -200), 5);
-    await this.addGeom(this.metalCubeFile, new Vector3(250, 30, -200), 5);
+    // Three glass blocks across the middle of the room.
+    // Light bends through them (refraction) in ways rasterizers cannot handle.
+    await this.addGeom(this.transparentCubeFile, new Vector3(-120, 56, -320), 14);
+    await this.addGeom(this.transparentCubeFile, new Vector3(0, 56, -340), 14);
+    await this.addGeom(this.transparentCubeFile, new Vector3(120, 56, -320), 14);
 
-    // Overhead fill
-    await this.addGeom(this.sunFile, new Vector3(0, 400, -150), 8);
+    // Two receptor pads near the back
+    await this.addGeom(this.redLightFile, new Vector3(-140, 20, -500), 5);
+    await this.addGeom(this.tealLightFile, new Vector3(140, 20, -500), 5);
+    this.targets.push({ position: new Vector3(-140, 20, -500), radius: 140 });
+    this.targets.push({ position: new Vector3(140, 20, -500), radius: 140 });
 
-    // === Three receptor pads ===
-    await this.addGeom(this.redLightFile, new Vector3(-180, -30, -380), 4);
-    await this.addGeom(this.tealLightFile, new Vector3(0, -30, -420), 4);
-    await this.addGeom(this.sunFile, new Vector3(180, -30, -380), 4);
-
-    this.targets.push({ position: new Vector3(-180, -30, -380), radius: 130 });
-    this.targets.push({ position: new Vector3(0, -30, -420), radius: 130 });
-    this.targets.push({ position: new Vector3(180, -30, -380), radius: 130 });
-
-    // Door
-    const doorId = await this.addGeom(this.metalCubeFile, new Vector3(0, 0, -570), 13);
-    this.doorIds.push(doorId);
-
-    // === Pickupable lights ===
-    const redId = await this.addGeom(this.redLightFile, new Vector3(-200, 20, 50), 18);
-    const tealId = await this.addGeom(this.tealLightFile, new Vector3(0, 20, 150), 18);
-    const whiteId = await this.addGeom(this.sunFile, new Vector3(200, 20, 50), 18);
+    // Two pickupable lights near the entrance
+    const redId = await this.addGeom(this.redLightFile, new Vector3(-140, 60, -80), 14);
+    const tealId = await this.addGeom(this.tealLightFile, new Vector3(140, 60, -80), 14);
     this.pickupables.add(redId);
     this.pickupables.add(tealId);
-    this.pickupables.add(whiteId);
   }
 
   async #setupLevel3() {
-    await this.addGeom(this.sunFile, new Vector3(0, 80000, 0), 15000);
+    await this.#buildRoom();
 
-    // More decorative ships for the grand finale
-    for (let i = 0; i < 3; i++) {
-      const tieId = await this.addGeom(
-        this.tieFile,
-        new Vector3(-430 + i * 180, 30 + i * 40, -700),
-        1
-      );
-      this.voxelManager.setGeomRotation(tieId, "x", 80 + i * 5);
-      this.voxelManager.setGeomRotation(tieId, "z", 70 + i * 5);
-    }
+    // A static red light fixed near the left wall.
+    // It bleeds red onto the floor, ceiling, and adjacent surfaces — global illumination.
+    // This is color bleeding: the wall itself becomes a secondary emitter of colored light.
+    await this.addGeom(this.redLightFile, new Vector3(-300, 180, -260), 12);
 
-    const xwingId = await this.addGeom(this.xwingFile, new Vector3(0, 120, -900), 1);
-    this.voxelManager.setGeomRotation(xwingId, "x", -40);
-    this.voxelManager.setGeomRotation(xwingId, "z", 40);
+    // Two large mirror panels facing each other — reflections bounce between them
+    await this.addGeom(this.metalCubeFile, new Vector3(-200, 120, -380), 30);
+    await this.addGeom(this.metalCubeFile, new Vector3(200, 120, -380), 30);
 
-    // Decorative: mirrors AND glass blocks (beautiful caustics/reflections)
-    await this.addGeom(this.metalCubeFile, new Vector3(-300, 40, -300), 6);
-    await this.addGeom(this.metalCubeFile, new Vector3(300, 40, -300), 6);
-    await this.addGeom(this.transparentCubeFile, new Vector3(-150, 50, -500), 5);
-    await this.addGeom(this.transparentCubeFile, new Vector3(150, 50, -500), 5);
+    // Glass block in the center — the teal pickup will refract through it
+    await this.addGeom(this.transparentCubeFile, new Vector3(0, 70, -310), 18);
 
-    await this.addGeom(this.sunFile, new Vector3(0, 400, -250), 8);
+    // Two receptor pads near the back:
+    // Left pad sits in the red light's color bleed zone.
+    // Right pad sits opposite — placing teal there creates a red/teal contrast across the room.
+    await this.addGeom(this.redLightFile, new Vector3(-120, 20, -520), 5);
+    await this.addGeom(this.tealLightFile, new Vector3(120, 20, -520), 5);
+    this.targets.push({ position: new Vector3(-120, 20, -520), radius: 140 });
+    this.targets.push({ position: new Vector3(120, 20, -520), radius: 140 });
 
-    // === Four receptor pads ===
-    await this.addGeom(this.redLightFile, new Vector3(-240, -30, -500), 4);
-    await this.addGeom(this.tealLightFile, new Vector3(-80, -30, -560), 4);
-    await this.addGeom(this.sunFile, new Vector3(80, -30, -560), 4);
-    await this.addGeom(this.tealLightFile, new Vector3(240, -30, -500), 4);
-
-    this.targets.push({ position: new Vector3(-240, -30, -500), radius: 130 });
-    this.targets.push({ position: new Vector3(-80, -30, -560), radius: 130 });
-    this.targets.push({ position: new Vector3(80, -30, -560), radius: 130 });
-    this.targets.push({ position: new Vector3(240, -30, -500), radius: 130 });
-
-    // No door — this is the finale. Win shows "You Win!"
-
-    // === Pickupable lights ===
-    const redId = await this.addGeom(this.redLightFile, new Vector3(-280, 20, 0), 18);
-    const teal1Id = await this.addGeom(this.tealLightFile, new Vector3(-90, 20, 120), 18);
-    const whiteId = await this.addGeom(this.sunFile, new Vector3(90, 20, 120), 18);
-    const teal2Id = await this.addGeom(this.tealLightFile, new Vector3(280, 20, 0), 18);
+    // Two pickupable lights near the entrance.
+    // When placed, the red+teal combo floods the room with mixed GI color bleeding.
+    const redId = await this.addGeom(this.redLightFile, new Vector3(-120, 60, -80), 14);
+    const tealId = await this.addGeom(this.tealLightFile, new Vector3(120, 60, -80), 14);
     this.pickupables.add(redId);
-    this.pickupables.add(teal1Id);
-    this.pickupables.add(whiteId);
-    this.pickupables.add(teal2Id);
+    this.pickupables.add(tealId);
   }
 
   // ─── Interaction ───────────────────────────────────────────────────────────
@@ -317,8 +300,8 @@ export class LightPuzzle {
     const isLast = this.currentLevel >= this.levelDefs.length - 1;
     const el = document.getElementById("hud-complete");
     el.textContent = isLast
-      ? "You Win!  All lights placed."
-      : "Level complete!  Walk through the door...";
+      ? "You Win!  The Color Cascade is complete."
+      : "Level complete!  Advancing to the next chamber...";
     el.style.display = "block";
 
     if (!isLast) {
