@@ -292,6 +292,12 @@ export class VoxelGeometry {
     this.needsUpdate = true;
   }
 
+  setScale(sx, sy, sz) {
+    this.mesh.scale.set(sx, sy, sz);
+    this.mesh.updateMatrixWorld(true);
+    this.needsUpdate = true;
+  }
+
   setRotation(input, degrees) {
     if (typeof input === "string" && typeof degrees === "number") {
       // Assuming input is an axis ('x', 'y', or 'z') and degrees is the rotation amount

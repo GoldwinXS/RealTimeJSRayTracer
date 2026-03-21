@@ -156,6 +156,10 @@ export class VoxelGeometryManager {
     this.voxelGeometries[id].setRotation(input, degrees);
   }
 
+  setGeomScale(id, sx, sy, sz) {
+    this.voxelGeometries[id].setScale(sx, sy, sz);
+  }
+
   /**
    * Updates the data needed to render the voxel geometries.
    */
