@@ -42,7 +42,7 @@ export class LightPuzzle {
   levelDefs = [
     {
       name: "Level 1 — Light Through the Gap",
-      objective: "Carry the chrome slab [E] to the receptor pad in front of the gap.",
+      objective: "Walk through the gap, pick up the chrome slab [E], and carry it to the receptor pad.",
     },
     {
       name: "Level 2 — Red Room",
@@ -167,9 +167,10 @@ export class LightPuzzle {
     this.targets.push({ position: new Vector3(0, 6, -200), radius: 200 });
 
     // Mirror slab: tall upright chrome panel the player carries.
-    // scale(1.5, 2.5, 0.2) → 120×200×16.  Starts near the entrance.
+    // scale(1.5, 2.5, 0.2) → 120×200×16.  Starts in the light zone behind the dividing wall.
+    // Player must walk through the gap to retrieve it, then carry it back to the receptor pad.
     const mirrorId = await this.addGeomScaled(
-      this.metalCubeFile, new Vector3(0, 100, -80), 10, 1.5, 2.5, 0.2
+      this.metalCubeFile, new Vector3(0, 100, -430), 10, 1.5, 2.5, 0.2
     );
     this.pickupables.add(mirrorId);
   }
@@ -296,6 +297,7 @@ export class LightPuzzle {
     for (const target of this.targets) {
       for (const id of this.pickupables) {
         if (used.has(id)) continue;
+        if (id === this.carriedId) continue; // must be placed, not held
         if (!(id in this.voxelManager.voxelGeometries)) continue;
         const dist = this.voxelManager.voxelGeometries[id].position.distanceTo(target.position);
         if (dist < target.radius) { used.add(id); satisfied++; break; }
