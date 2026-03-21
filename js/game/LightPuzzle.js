@@ -292,6 +292,7 @@ export class LightPuzzle {
   }
 
   #checkWin() {
+    if (this.targets.length === 0) return; // level still loading, no targets registered yet
     const used = new Set();
     let satisfied = 0;
     for (const target of this.targets) {

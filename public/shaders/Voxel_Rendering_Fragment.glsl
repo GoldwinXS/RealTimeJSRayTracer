@@ -357,7 +357,7 @@ float SceneIntersect()
 				// Record the hit info. 
 				t = d;
 				hitColor = voxelHitColor.rgb;
-				hitType = int(voxelHitColor.a * 255.0);
+				hitType = int(voxelHitColor.a * 255.0 + 0.5); // +0.5 rounds before truncating — avoids float precision losing e.g. 20→19
 				hitEmission = hitColor;
 
 				if(hitType == 20) {
