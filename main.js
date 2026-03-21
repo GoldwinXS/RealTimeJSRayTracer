@@ -17,10 +17,9 @@ import {
   uiStatePropertyNames,
 } from "./js/uiState";
 import { RGBELoader } from "./js/RGBELoader";
-import { GameManager } from "./js/game/GameManager";
 import { FirstPersonCameraControls } from "./js/camera/FirstPersonCameraControls";
 import { materialTypes } from "./js/data/SpecialColorManager";
-import { TestChamber } from "./js/game/TestChamber";
+import { LightPuzzle } from "./js/game/LightPuzzle";
 
 function initSceneData(sceneSettings) {
   // Initialize Renderer and Context
@@ -61,9 +60,8 @@ function initSceneData(sceneSettings) {
     sceneSettings.worldCamera
   );
 
-  // sceneSettings.gameManager.attachCamera(sceneSettings.worldCamera);
   sceneSettings.gameManager.setupPlayerControls();
-  // sceneSettings.controls = sceneSettings.gameManager.playerControls;
+  sceneSettings.gameManager.setupControls(sceneSettings.controls);
 
   // scene/demo-specific uniforms go here
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
@@ -305,7 +303,7 @@ function animate() {
   );
 
   sceneSettings.stats.update();
-  sceneSettings.gameManager.handleAnimationFrame();
+  sceneSettings.gameManager.handleAnimationFrame(sceneSettings.controls);
   sceneSettings.gameManager.rotatePlayerModel();
   requestAnimationFrame(animate);
 }
@@ -389,8 +387,7 @@ async function loadFilesAndStart(sceneSettings) {
   defineSpecialColors(voxelManager);
 
   // Set up scene settings with the first geometry
-  // sceneSettings.gameManager = new GameManager(voxelManager);
-  sceneSettings.gameManager = new TestChamber(voxelManager);
+  sceneSettings.gameManager = new LightPuzzle(voxelManager);
   await sceneSettings.gameManager.startGame(sceneSettings.worldCamera);
 
   sceneSettings.voxels.voxelGeometry = voxelManager.voxelGeometries[0];

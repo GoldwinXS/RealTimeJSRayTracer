@@ -207,6 +207,30 @@ export class VoxelGeometryManager {
     this.uBVHTextureSize = this.uBVHTexture.source.data.width;
   }
 
+  #createVoxelTexture(atlasData, maxTextureDimensions) {
+    const { x, y, z } = maxTextureDimensions;
+    const texture = new THREE.Data3DTexture(atlasData, x, y, z);
+    texture.format = THREE.RGBAFormat;
+    texture.type = THREE.UnsignedByteType;
+    texture.minFilter = THREE.NearestFilter;
+    texture.magFilter = THREE.NearestFilter;
+    texture.unpackAlignment = 1;
+    texture.needsUpdate = true;
+    texture.generateMipmaps = false;
+    return texture;
+  }
+
+  #prepareShaderData(voxelGeometries) {
+    return this.shaderDataBuilder.prepareShaderData(voxelGeometries);
+  }
+
+  #encodeLightsIntoDataTexture() {
+    const result = this.shaderDataBuilder.encodeLightsIntoDataTexture(this.lights);
+    this.lightTexture = result.lightTexture;
+    this.lightTextureSize = result.lightTextureSize;
+    return result;
+  }
+
   async updateVoxelShaderData() {
     if (this.needsUpdate && !this.isUpdating) {
       this.needsUpdate = false;
@@ -222,8 +246,9 @@ export class VoxelGeometryManager {
     );
     this.shaderData = dataTexture;
     this.textureWidth = textureWidth;
-    const { lightTexture, lightTextureSize } =
-      this.#encodeLightsIntoDataTexture();
+    const { lightTexture, lightTextureSize } = this.#encodeLightsIntoDataTexture();
+    this.lightTexture = lightTexture;
+    this.lightTextureSize = lightTextureSize;
     if (this.totalLights == 0) {
       console.warn("No lights found in scene.");
     }

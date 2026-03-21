@@ -312,24 +312,38 @@ export class VoxelGeometry {
    */
   toFloatArray() {
     try {
-      // Compare matrixWorld for overall transformation changes
-      const positionChanged = this.float32Data?.position
-        ? !this.mesh.position.equals(this.float32Data?.position)
-        : true;
+      this.mesh.updateMatrixWorld(true);
+      const invMatrix = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
 
-      // Compare quaternion for rotation changes
-      const quaternionChanged = this.float32Data?.quaternion
-        ? !this.mesh.quaternion.equals(this.float32Data?.quaternion)
-        : true;
+      // 28 floats per geometry (7 RGBA texels):
+      // texel 0: voxelSize, gridX, gridY, gridZ
+      // texel 1: texMinX, texMinY, texMinZ, texMaxX
+      // texel 2: texMaxY, texMaxZ, pad, pad
+      // texels 3-6: inverse world matrix (column-major, 4 columns × 4 floats)
+      const data = new Float32Array(28);
 
-    if (
-      this.float32Data.data &&
-      !positionChanged &&
-      !quaternionChanged &&
-      !matrixWorldChanged &&
-      !this.needsUpdate
-    ) {
-      return this.float32Data.data;
+      data[0] = this.voxelSize;
+      data[1] = this.gridDimensions.x;
+      data[2] = this.gridDimensions.y;
+      data[3] = this.gridDimensions.z;
+
+      data[4] = this.textureMinPositionNormalized?.x ?? 0;
+      data[5] = this.textureMinPositionNormalized?.y ?? 0;
+      data[6] = this.textureMinPositionNormalized?.z ?? 0;
+      data[7] = this.textureMaxPositionNormalized?.x ?? 0;
+
+      data[8] = this.textureMaxPositionNormalized?.y ?? 0;
+      data[9] = this.textureMaxPositionNormalized?.z ?? 0;
+      data[10] = 0;
+      data[11] = 0;
+
+      const me = invMatrix.elements; // column-major
+      for (let i = 0; i < 16; i++) {
+        data[12 + i] = me[i];
+      }
+
+      this.needsUpdate = false;
+      return data;
     } catch (error) {
       console.warn(`Problem exporting data for geometry ${this.id}: ${error}`);
       throw error;
