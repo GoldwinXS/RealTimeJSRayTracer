@@ -24,8 +24,8 @@ export class LightPuzzle {
   // Pickup state
   pickupables = new Set(); // IDs of objects the player can carry
   carriedId = null;
-  carryDistance = 130; // world units in front of camera
-  pickupRadius = 180;  // how close you need to be to pick up
+  carryDistance = 220; // world units in front of camera
+  pickupRadius = 200;  // how close you need to be to pick up
 
   // Level state
   currentLevel = 0;
@@ -38,16 +38,16 @@ export class LightPuzzle {
 
   levelDefs = [
     {
-      name: "Level 1 — Hall of Mirrors",
-      objective: "Carry the red light [E] to the receptor pad. Watch it reflect off the chrome pillars!",
+      name: "Level 1 — First Reflection",
+      objective: "Carry the chrome mirror [E] to the glowing marker. The red light will reflect off it.",
     },
     {
       name: "Level 2 — Through the Glass",
-      objective: "Place both lights on their pads. See light bend through glass — a path tracer exclusive.",
+      objective: "Place the mirror on the marker behind the glass. Watch the teal light bend as you move through.",
     },
     {
       name: "Level 3 — Color Cascade",
-      objective: "Activate the chamber. The colored lights bleed onto the walls — global illumination you can't fake.",
+      objective: "Position both mirrors to complete the cascade. Red light bleeds across every surface.",
     },
   ];
 
@@ -131,84 +131,82 @@ export class LightPuzzle {
   }
 
   async #setupLevel1() {
-    // Enclosed room — light has nowhere to escape, so bounces accumulate
     await this.#buildRoom();
 
-    // Soft white ceiling light for ambient fill
+    // One soft white ceiling light — ambient only, lets you see the room
     await this.addGeom(this.sunFile, new Vector3(0, 340, -300), 6);
 
-    // Two chrome pillars — specular (mirror) reflections.
-    // The red pickup light will visibly reflect off them.
-    await this.addGeom(this.metalCubeFile, new Vector3(-180, 100, -280), 22);
-    await this.addGeom(this.metalCubeFile, new Vector3(180, 100, -280), 22);
+    // Fixed red light source on the left side (not pickupable).
+    // It illuminates the left wall with red — the path tracer bounces that
+    // red light onto the floor and ceiling (color bleeding).
+    await this.addGeom(this.redLightFile, new Vector3(-280, 180, -350), 8);
 
-    // Receptor pad: small glowing red marker near the back wall
-    await this.addGeom(this.redLightFile, new Vector3(0, 20, -480), 5);
-    this.targets.push({ position: new Vector3(0, 20, -480), radius: 140 });
+    // Two static chrome pillars — the player will see the red light reflect
+    // in them once the carried mirror redirects light their way
+    await this.addGeom(this.metalCubeFile, new Vector3(-160, 80, -260), 20);
+    await this.addGeom(this.metalCubeFile, new Vector3(160, 80, -260), 20);
 
-    // One pickupable red light near the entrance
-    const redId = await this.addGeom(this.redLightFile, new Vector3(0, 60, -100), 14);
-    this.pickupables.add(redId);
+    // Receptor marker: small teal glow marks where to place the mirror
+    await this.addGeom(this.tealLightFile, new Vector3(160, 20, -420), 4);
+    this.targets.push({ position: new Vector3(160, 20, -420), radius: 150 });
+
+    // One pickupable mirror (chrome cube) near the entrance
+    const mirrorId = await this.addGeom(this.metalCubeFile, new Vector3(0, 60, -100), 10);
+    this.pickupables.add(mirrorId);
   }
 
   async #setupLevel2() {
     await this.#buildRoom();
 
-    // Dimmer overhead light — lets the colored lights stand out more
+    // Slightly dimmer ceiling light — lets the teal source dominate the mood
     await this.addGeom(this.sunFile, new Vector3(0, 340, -300), 4);
 
-    // Chrome pillars on each side
-    await this.addGeom(this.metalCubeFile, new Vector3(-200, 80, -200), 20);
-    await this.addGeom(this.metalCubeFile, new Vector3(200, 80, -200), 20);
+    // Fixed teal light source at the back, high up.
+    // The glass blocks below it visibly refract it — you can see the caustics.
+    await this.addGeom(this.tealLightFile, new Vector3(0, 300, -520), 9);
 
-    // Three glass blocks across the middle of the room.
-    // Light bends through them (refraction) in ways rasterizers cannot handle.
-    await this.addGeom(this.transparentCubeFile, new Vector3(-120, 56, -320), 14);
-    await this.addGeom(this.transparentCubeFile, new Vector3(0, 56, -340), 14);
-    await this.addGeom(this.transparentCubeFile, new Vector3(120, 56, -320), 14);
+    // Three glass blocks form a barrier across the middle.
+    // The teal light bends through them — impossible in a rasterizer.
+    await this.addGeom(this.transparentCubeFile, new Vector3(-130, 56, -300), 14);
+    await this.addGeom(this.transparentCubeFile, new Vector3(0, 56, -320), 14);
+    await this.addGeom(this.transparentCubeFile, new Vector3(130, 56, -300), 14);
 
-    // Two receptor pads near the back
-    await this.addGeom(this.redLightFile, new Vector3(-140, 20, -500), 5);
-    await this.addGeom(this.tealLightFile, new Vector3(140, 20, -500), 5);
-    this.targets.push({ position: new Vector3(-140, 20, -500), radius: 140 });
-    this.targets.push({ position: new Vector3(140, 20, -500), radius: 140 });
+    // Receptor marker behind the glass, on the right side
+    await this.addGeom(this.redLightFile, new Vector3(220, 20, -460), 4);
+    this.targets.push({ position: new Vector3(220, 20, -460), radius: 150 });
 
-    // Two pickupable lights near the entrance
-    const redId = await this.addGeom(this.redLightFile, new Vector3(-140, 60, -80), 14);
-    const tealId = await this.addGeom(this.tealLightFile, new Vector3(140, 60, -80), 14);
-    this.pickupables.add(redId);
-    this.pickupables.add(tealId);
+    // One pickupable mirror near the entrance
+    const mirrorId = await this.addGeom(this.metalCubeFile, new Vector3(-100, 60, -80), 10);
+    this.pickupables.add(mirrorId);
   }
 
   async #setupLevel3() {
     await this.#buildRoom();
 
-    // A static red light fixed near the left wall.
-    // It bleeds red onto the floor, ceiling, and adjacent surfaces — global illumination.
-    // This is color bleeding: the wall itself becomes a secondary emitter of colored light.
-    await this.addGeom(this.redLightFile, new Vector3(-300, 180, -260), 12);
+    // Very dim ceiling light — the colored light sources own the mood here
+    await this.addGeom(this.sunFile, new Vector3(0, 340, -300), 3);
 
-    // Two large mirror panels facing each other — reflections bounce between them
-    await this.addGeom(this.metalCubeFile, new Vector3(-200, 120, -380), 30);
-    await this.addGeom(this.metalCubeFile, new Vector3(200, 120, -380), 30);
+    // Bright fixed red light near the left wall.
+    // Strong enough that the left wall becomes visibly red, and that red
+    // bleeds onto the floor and ceiling — global illumination in action.
+    await this.addGeom(this.redLightFile, new Vector3(-290, 200, -280), 11);
 
-    // Glass block in the center — the teal pickup will refract through it
-    await this.addGeom(this.transparentCubeFile, new Vector3(0, 70, -310), 18);
+    // Two glass blocks near the back — refraction adds color mixing
+    await this.addGeom(this.transparentCubeFile, new Vector3(-80, 60, -380), 16);
+    await this.addGeom(this.transparentCubeFile, new Vector3(80, 60, -380), 16);
 
-    // Two receptor pads near the back:
-    // Left pad sits in the red light's color bleed zone.
-    // Right pad sits opposite — placing teal there creates a red/teal contrast across the room.
-    await this.addGeom(this.redLightFile, new Vector3(-120, 20, -520), 5);
-    await this.addGeom(this.tealLightFile, new Vector3(120, 20, -520), 5);
-    this.targets.push({ position: new Vector3(-120, 20, -520), radius: 140 });
-    this.targets.push({ position: new Vector3(120, 20, -520), radius: 140 });
+    // Two receptor markers: both on the right side, away from the red light.
+    // Placing mirrors there creates a dramatic red-to-right reflection chain.
+    await this.addGeom(this.tealLightFile, new Vector3(180, 20, -280), 4);
+    await this.addGeom(this.tealLightFile, new Vector3(260, 20, -460), 4);
+    this.targets.push({ position: new Vector3(180, 20, -280), radius: 150 });
+    this.targets.push({ position: new Vector3(260, 20, -460), radius: 150 });
 
-    // Two pickupable lights near the entrance.
-    // When placed, the red+teal combo floods the room with mixed GI color bleeding.
-    const redId = await this.addGeom(this.redLightFile, new Vector3(-120, 60, -80), 14);
-    const tealId = await this.addGeom(this.tealLightFile, new Vector3(120, 60, -80), 14);
-    this.pickupables.add(redId);
-    this.pickupables.add(tealId);
+    // Two pickupable mirrors — player must place both to complete the cascade
+    const mirror1Id = await this.addGeom(this.metalCubeFile, new Vector3(-80, 60, -80), 10);
+    const mirror2Id = await this.addGeom(this.metalCubeFile, new Vector3(80, 60, -80), 10);
+    this.pickupables.add(mirror1Id);
+    this.pickupables.add(mirror2Id);
   }
 
   // ─── Interaction ───────────────────────────────────────────────────────────
@@ -315,14 +313,15 @@ export class LightPuzzle {
   // ─── Camera helpers ────────────────────────────────────────────────────────
 
   getCamPos() {
-    return this.controls?.yawObject.position.clone() ?? new Vector3();
+    const pos = new Vector3();
+    this.controls?.worldCamera.getWorldPosition(pos);
+    return pos;
   }
 
   getCamForward() {
-    return (
-      this.controls?.cameraVectors.directionVector.clone().normalize() ??
-      new Vector3(0, 0, -1)
-    );
+    const dir = new Vector3(0, 0, -1);
+    this.controls?.worldCamera.getWorldDirection(dir);
+    return dir;
   }
 
   // ─── HUD helpers ───────────────────────────────────────────────────────────

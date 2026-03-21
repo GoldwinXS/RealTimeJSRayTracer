@@ -286,6 +286,7 @@ export class VoxelGeometry {
   }
 
   setPosition(position) {
+    this.position = position.clone();
     this.mesh.position.set(position.x, position.y, position.z);
     this.mesh.updateMatrixWorld(true);
     this.needsUpdate = true;

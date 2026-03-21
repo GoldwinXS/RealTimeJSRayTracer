@@ -1,122 +1,73 @@
-# Real-Time JavaScript Ray Tracer
+# RealTimeJSRayTracer
 
-A real-time path tracing engine built in JavaScript using WebGL2 and THREE.js, themed around a Star Wars space scene. Voxel models (.vox format from MagicaVoxel) are rendered with physically-based lighting including reflections, refractions, and global illumination.
+A real-time voxel path tracer running in the browser via WebGL2, built as a light-puzzle game to demonstrate rendering effects that rasterizers cannot reproduce.
 
-## Live Demo
+**[Play it here](https://goldwinxs.github.io/RealTimeJSRayTracer/)**
 
-Deployed to GitHub Pages at: `https://<username>.github.io/RealTimeJSRayTracer/`
+## What makes this different
 
-## Features
+Traditional game engines (Unity, Unreal, WebGL rasterizers) fake lighting with tricks — shadow maps, ambient occlusion, screen-space reflections. This renderer simulates actual light physics:
 
-- **Real-time path tracing** via WebGL2 fragment shader
-- **Voxel rendering** using a DDA (Digital Differential Analyzer) grid traversal algorithm
-- **Progressive refinement** — image quality improves the longer the camera is still
-- **Physical materials** — diffuse, specular (metal), refractive (glass), emissive (lights)
-- **Multiple voxel geometries** packed into a single 3D texture atlas for efficient GPU access
-- **Dynamic scene** — spawn TIE fighters, fire blaster bolts
-- **FPS camera controls** — WASD + mouse look
-- **Web Worker** for off-main-thread texture atlas compilation
-- **Depth of field** and motion blur accumulation
+- **Global illumination** — light bounces between surfaces; a red wall bleeds red onto the floor and ceiling
+- **Specular reflections** — chrome surfaces reflect the full environment, including other reflections
+- **Refraction** — glass bends light correctly based on its index of refraction
+- **Color bleeding** — colored emitters tint nearby diffuse surfaces through indirect illumination
+
+The tradeoff is noise. Each frame adds one more sample. Standing still lets the image converge; moving resets accumulation. This is the nature of Monte Carlo path tracing.
 
 ## Controls
 
-| Input | Action |
-|-------|--------|
-| `W A S D` | Move camera |
-| Mouse drag | Look around |
-| Click canvas | Lock pointer (enables mouse look) |
-| `Escape` | Release pointer lock |
-| `T` | Spawn a TIE fighter |
-| `Space` | Fire blaster bolt |
+| Key / Input | Action |
+|-------------|--------|
+| **Click** | Lock mouse to start |
+| **W A S D** | Move |
+| **Q** | Move up |
+| **Z** | Move down |
+| **Mouse** | Look around |
+| **E** | Pick up / drop nearest mirror |
+| **Esc** | Release mouse |
 
-## Architecture
+## The puzzle
 
-### Rendering Pipeline
+Each level contains:
+- A **white ceiling light** — ambient fill so you can navigate
+- A **fixed colored light source** — the puzzle element, permanently placed in the scene
+- One or more **chrome mirror cubes** — pick these up with **E** and carry them to the glowing markers
 
-Each animation frame runs three render passes:
+Placing a mirror on a marker redirects the colored light and reveals the path tracer's reflection and GI capabilities. Stand still after placing to let the image converge and appreciate the effect.
 
-1. **Path Tracing pass** (`Voxel_Rendering_Fragment.glsl`) — traces rays through the scene, blends with the previous frame for progressive refinement
-2. **Screen Copy pass** (`ScreenCopy_Fragment.glsl`) — ping-pong buffer copy for temporal accumulation
-3. **Screen Output pass** (`ScreenOutput_Fragment.glsl`) — post-processing: blur, edge sharpening, tone mapping, gamma correction
+## Tech
 
-### Ray-Scene Intersection
+- **Renderer**: Custom voxel path tracer in GLSL (WebGL2), 6-bounce radiance sampling
+- **Ray traversal**: DDA (Digital Differential Analyzer) through a packed 3D texture atlas
+- **Voxel format**: MagicaVoxel `.vox` via vox-reader
+- **Atlas compilation**: Web Worker (off main thread)
+- **Build**: Vite + vite-plugin-glsl
+- **Deploy**: GitHub Actions → GitHub Pages
 
-Rays are transformed into each voxel geometry's local coordinate space. The DDA algorithm then traverses the 3D voxel grid cell-by-cell to find the first solid voxel hit. Voxel color and material type are stored in a packed 3D texture atlas (RGBA, where alpha encodes the material ID).
+### Rendering pipeline (3 passes per frame)
 
-### Material System
+1. **Path tracing** (`Voxel_Rendering_Fragment.glsl`) — traces rays, blends with previous frame
+2. **Screen copy** — ping-pong buffer for temporal accumulation
+3. **Screen output** — tone mapping and gamma correction
 
-Material types are encoded in the alpha channel of the voxel texture. Special colors defined in `main.js` map specific RGB values to material overrides:
+### Material types (encoded in voxel alpha channel)
 
-| Type ID | Material |
-|---------|----------|
+| ID | Material |
+|----|----------|
 | 1 | Diffuse |
 | 2 | Refractive (glass) |
-| 3 | Specular (metal) |
-| 19 | Emissive light (untracked) |
-| 20 | Emissive light (tracked for sampling) |
+| 3 | Specular (metal / mirror) |
+| 19 | Emissive, untracked |
+| 20 | Emissive, tracked for direct sampling |
 
-### Key Files
-
-```
-main.js                          — App entry point, render loop, scene setup
-settings.js                      — Global scene state and THREE.js objects
-shaders/
-  Voxel_Rendering_Fragment.glsl  — Main path tracing shader (DDA traversal, materials, lighting)
-  ScreenOutput_Fragment.glsl     — Post-processing (blur, tone mapping)
-  ScreenCopy_Fragment.glsl       — Ping-pong buffer copy
-  common_PathTracing_Vertex.glsl — Passthrough vertex shader
-js/
-  pathtracing/
-    PathTracingCommon.js         — GLSL shader chunks registered into THREE.ShaderChunk
-    PathTracingUtils.js          — Render target setup, uniform helpers, shader loader
-  data/
-    VoxelGeometry.js             — Loads .vox files, manages mesh/texture per geometry
-    MultiVoxelLoader.js          — Manages multiple geometries, packs texture atlas
-    VoxelGeometryWorker.js       — Web Worker: compiles atlas and identifies light voxels
-  camera/
-    FirstPersonCameraControls.js — FPS-style yaw/pitch camera
-    PlayerControls.js            — Ship control integration
-  game/
-    GameManager.js               — Scene setup, TIE fighters, bullets, player ship
-public/
-  models/                        — MagicaVoxel .vox model files
-  textures/                      — Blue noise and other textures used by shaders
-```
-
-## Development
+## Running locally
 
 ```bash
 npm install
-npm run dev      # Start local dev server at http://localhost:5173
+npm run dev       # dev server at http://localhost:5173
+npm test          # unit tests (Vitest)
+npm run build     # production build → dist/
 ```
 
-## Building & Deployment
-
-```bash
-npm run build    # Build to dist/
-npm run preview  # Preview the production build locally
-npm run deploy   # Build and push to gh-pages branch (requires gh-pages package)
-```
-
-The `base` in `vite.config.js` is set to `/RealTimeJSRayTracer/` to match the GitHub Pages repository path. Change this if your repo has a different name.
-
-### GitHub Pages Setup
-
-1. In your GitHub repo, go to **Settings → Pages**
-2. Set source to the `gh-pages` branch
-3. Run `npm run deploy` to publish
-
-## Performance Notes
-
-- The path tracer accumulates samples over time — stay still for a cleaner image
-- `pixelRatio` in settings controls render resolution (default 2 = half resolution)
-- Large voxel models (e.g. `falcon.vox`) increase DDA traversal time per ray
-- The 3D texture atlas is capped at 258×258×258 — adding many large models may overflow it
-
-## Origin
-
-Started from [erichlof/THREE.js-PathTracing-Renderer](https://github.com/erichlof/THREE.js-PathTracing-Renderer) as a base, then extended with:
-- Custom voxel geometry system with .vox file loading
-- Multi-geometry texture atlas packing
-- Web Worker atlas compilation
-- FPS camera and basic game mechanics
+Click the canvas to lock the mouse, then use WASD + mouse to move.

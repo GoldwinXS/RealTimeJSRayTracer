@@ -1,0 +1,8 @@
+node_modules/
+package-lock.json
+.DS_Store
+.firebase/
+models/chr_knight.vox
+models/chr_sword.vox
+models/room.vox
+models/simpleTest.vox
