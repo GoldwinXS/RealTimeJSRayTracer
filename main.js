@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import "./js/pathtracing/PathTracingCommon.js";
 import { onWindowResize } from "./js/WindowEvents";
 import { sceneSettings } from "./settings";
 import {
@@ -55,13 +56,13 @@ function initSceneData(sceneSettings) {
   // Add meshes.
   let hdrLoader = new RGBELoader();
   hdrLoader.type = THREE.FloatType; // override THREE's default of HalfFloatType
-
+  sceneSettings.worldCamera.position.set(0, 100, 100);
   sceneSettings.controls = new FirstPersonCameraControls(
     sceneSettings.worldCamera
   );
 
   // sceneSettings.gameManager.attachCamera(sceneSettings.worldCamera);
-  // sceneSettings.gameManager.setupPlayerControls();
+  sceneSettings.gameManager.setupPlayerControls();
   // sceneSettings.controls = sceneSettings.gameManager.playerControls;
 
   // scene/demo-specific uniforms go here
@@ -305,6 +306,7 @@ function animate() {
 
   sceneSettings.stats.update();
   sceneSettings.gameManager.handleAnimationFrame();
+  sceneSettings.gameManager.rotatePlayerModel();
   requestAnimationFrame(animate);
 }
 

@@ -72,9 +72,9 @@ export class VoxelGeometryManager {
   }
 
   handleWorkerUpdateResponse(data) {
-    console.log("handeling update");
-    this.voxelTexture = this.textureAtlasBuilder.createVoxelTexture(
-      data.atlasData
+    this.voxelTexture = this.#createVoxelTexture(
+      data.atlasData,
+      this.maxTextureDimensions
     );
 
     // Assuming `this.geometries` is a Map or an object where keys are `id`s of geometries
@@ -217,22 +217,15 @@ export class VoxelGeometryManager {
     if (this.isUpdating) {
       return;
     }
-    try {
-      this.textureAtlasBuilder.packVoxelGeometries(this.voxelGeometries);
-
-      const { dataTexture, textureWidth } =
-        this.shaderDataBuilder.prepareShaderData(this.voxelGeometries);
-      const { lightTexture, lightTextureSize } =
-        this.shaderDataBuilder.encodeLightsIntoDataTexture(this.lights);
-      this.shaderData = dataTexture;
-      this.textureWidth = textureWidth;
-
-      this.lightTexture = lightTexture;
-      this.lightTextureSize = lightTextureSize;
-    } catch (error) {
-      console.error(`Could not execute update: ${error}`);
-      this.textureAtlasBuilder.packVoxelGeometries(this.voxelGeometries);
-      throw error;
+    const { dataTexture, textureWidth } = this.#prepareShaderData(
+      this.voxelGeometries
+    );
+    this.shaderData = dataTexture;
+    this.textureWidth = textureWidth;
+    const { lightTexture, lightTextureSize } =
+      this.#encodeLightsIntoDataTexture();
+    if (this.totalLights == 0) {
+      console.warn("No lights found in scene.");
     }
   }
 }

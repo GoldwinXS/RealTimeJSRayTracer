@@ -11,9 +11,6 @@ uniform int uNumberOfVoxelGeometries;
 uniform sampler2D uVoxelDataTexture;
 uniform float uVoxelDataTextureWidth;
 
-uniform sampler2D uBVHTexture;
-uniform float uBVHTextureSize;
-
 uniform sampler2D uVoxelLightTexture;
 uniform int uNumberOfVoxelLights;
 uniform float uVoxelLightTextureSize;
@@ -21,31 +18,6 @@ uniform float uVoxelLightTextureSize;
 vec3 emission = vec3(1);
 vec3 yellowLightColor = vec3(1.0, 0.8, 0.2) * 2.0;
 const float dataSize = 7.0;
-
-// Function to calculate UV coordinates for accessing the BVH texture
-vec2 indexToUV(int index) {
-	float pixelIndex = float(index) * 2.0; // Assuming 2 pixels per node data
-	float u = mod(pixelIndex, uBVHTextureSize) / uBVHTextureSize;
-	float v = floor(pixelIndex / uBVHTextureSize) / uBVHTextureSize;
-	return vec2(u, v);
-}
-
-// Function to retrieve bounding box min and max vectors for a node
-void getBoundingBox(int index, out vec3 min, out vec3 max) {
-	vec2 uvMin = indexToUV(index * 2); // Even indices for min
-	vec2 uvMax = indexToUV(index * 2 + 1); // Odd indices for max
-	vec4 packedMin = texture(uBVHTexture, uvMin);
-	vec4 packedMax = texture(uBVHTexture, uvMax);
-	min = packedMin.xyz;
-	max = packedMax.xyz;
-}
-
-// Function to get children indices for a node
-ivec2 getChildrenIndices(int index) {
-	vec2 uvIndices = indexToUV((index + 1) * 2); // Assuming children indices follow the bounding box data
-	vec4 packedIndices = texture(uBVHTexture, uvIndices);
-	return ivec2(packedIndices.xy);
-}
 
 float getDataTextureWidth() {
 	return float((float(uNumberOfVoxelGeometries + 1) * dataSize) + dataSize);
@@ -101,7 +73,7 @@ VoxelGeometry getVoxelGeometry(int voxelIndex) {
 #include <pathtracing_uniforms_and_defines>
 const float epsilon = 0.0001;
 
-#define MAX_DEPTH 12
+#define N_BOXES 4
 
 //-----------------------------------------------------------------------
 
@@ -129,94 +101,19 @@ struct Sphere {
 	int type;
 };
 
+Box boxes[N_BOXES];
+
 #include <pathtracing_random_functions>
 
 #include <pathtracing_calc_fresnel_reflectance>
 
 #include <pathtracing_box_intersect>
 
-#include <pathtracing_boundingbox_intersect>
-
 #include <pathtracing_box_interior_intersect>
 
 #include <pathtracing_sphere_intersect>
 
 #include <pathtracing_sample_sphere_light>
-
-struct NodeData {
-	int index;
-	int nextIndexR;
-	int nextIndexL;
-	vec3 minCorner;
-	vec3 maxCorner;
-	bool isLeaf;
-	mat4 invMatrix;
-};
-
-NodeData getBVHNode(int index) {
-	float pixelIndex = float(index * 6); // Start index for this node's data
-
-	vec4 data[6]; // Array to store fetched data
-	for(int i = 0; i < 6; i++) {
-		float x = mod(pixelIndex + float(i), uBVHTextureSize);
-		float y = floor((pixelIndex + float(i)) / uBVHTextureSize);
-		vec2 uv = vec2(x, y) / uBVHTextureSize;
-		data[i] = texture(uBVHTexture, uv);
-	}
-
-    // Interpretation based on updated rules
-	bool isLeaf = int(data[0].x) == -1;
-	int childIndexL = isLeaf ? -1 : int(data[0].x); // Use x for left child index if not a leaf
-	int childIndexR = int(data[0].y); // Always use y for right child index
-
-	vec3 minCorner = vec3(data[0].z, data[0].w, data[1].x);
-	vec3 maxCorner = vec3(data[1].y, data[1].z, data[1].w);
-
-	mat4 invMatrix = mat4(data[2], data[3], data[4], data[5]);
-
-    // Assuming 'index' should actually reflect this node's position in some global structure or ID
-	NodeData nodeData = NodeData(childIndexR, childIndexR, childIndexL, minCorner, maxCorner, isLeaf, invMatrix);
-	return nodeData;
-}
-
-struct BVHHit {
-	int closestLeafVoxelIndex;
-	int leafIndex;
-	float distance;
-};
-
-#define MAX_HITS 12
-struct BVHHits {
-	BVHHit hits[MAX_HITS];
-	int count;
-};
-
-BVHHits TraverseBVHTree(vec3 rayOrigin, vec3 rayDirection, float t, vec3 normal, int isRayExiting) {
-	float d;
-	int stack[MAX_DEPTH];
-	int stackPtr = 0;
-	stack[stackPtr++] = 0;
-	BVHHits hits;
-	hits.count = 0;
-
-	for(int i = 0; i < MAX_DEPTH; i++) {
-		 // Pop the top node off the stack
-		int currentIndex = stack[--stackPtr];
-		NodeData node = getBVHNode(currentIndex);
-		d = BoundingBoxIntersect(node.minCorner, node.maxCorner, rayOrigin, 1.0 / rayDirection);
-		if(d < t) {
-			if(node.isLeaf) {
-				hits.hits[hits.count].leafIndex = node.index;
-				hits.hits[hits.count] = BVHHit(node.index, currentIndex, d);
-				hits.count++;
-			} else {
-				stack[stackPtr++] = node.nextIndexR;
-				stack[stackPtr++] = node.nextIndexL;
-			}
-		}
-	}
-	return hits;
-}
 
 Box getLightData(int lightIndex) {
 	float N = float(uVoxelLightTextureSize);
@@ -361,44 +258,72 @@ ivec3 getVoxelPosition(vec3 localRayDir, vec3 localRayOrigin, Box voxelBox, Voxe
 	return cellIndex;
 }
 
-float SceneIntersect() {
-	vec3 rObjOrigin, rObjDirection;
+vec3 sampleBoxLight(vec3 x, vec3 nl, Box light, out float weight) {
+    // Calculate the center of the box light
+	vec3 lightCenter = (light.minCorner + light.maxCorner) * 0.5;
+	vec3 dims = light.maxCorner - light.minCorner;
+
+    // Direction from the point being shaded to the center of the box
+	vec3 dirToLightCenter = lightCenter - x;
+	float distanceToLightCenter = length(dirToLightCenter);
+	dirToLightCenter = dirToLightCenter / distanceToLightCenter; // Normalize
+
+    // Randomly choose an offset within the box dimensions to simulate variability in emitted light directions
+	float offsetX = (rng() - 0.5) * dims.x;
+	float offsetY = (rng() - 0.5) * dims.y;
+	float offsetZ = (rng() - 0.5) * dims.z;
+	vec3 offset = vec3(offsetX, offsetY, offsetZ);
+
+    // Calculate a new light direction based on the random offset
+	vec3 dirToRandomPointOnLight = normalize((lightCenter + offset) - x);
+
+    // Weight calculation: Inverse square law for distance attenuation and Lambert's cosine law for angle of incidence
+    // Note: This is a simplification and may not accurately represent the true distribution of light from a box source.
+	float cosTheta = max(dot(nl, dirToRandomPointOnLight), 0.0);
+	weight = cosTheta / (distanceToLightCenter * distanceToLightCenter);
+	weight = clamp(weight, 0.0, 1.0); // Ensure weight is in [0, 1]
+
+	return dirToRandomPointOnLight;
+}
+
+float SceneIntersect()
+//--------------------------------------------------------------------------------------------------------
+{
+	vec3 rObjOrigin = rayOrigin, rObjDirection = rayDirection;
+	vec3 hitWorldSpace;
 	vec3 normal, n;
 
 	float d = INFINITY;
 	float t = INFINITY;
+
 	int objectCount = 0;
+
 	int isRayExiting = FALSE;
-	// Voxels.
-	// for(int node = 0; node < 20; node++) {
-	// 	if(rand() < 0.5) {
-	// 		NodeData rootNode = getBVHNode(node);
-	// 		d = BoxIntersect(rootNode.minCorner, rootNode.maxCorner, rayOrigin, rayDirection, normal, isRayExiting);
-	// 		if(d < t) {
-	// 			t = d;
-	// 			hitNormal = normal;
-	// 			hitEmission = vec3(1.0);
-	// 			hitColor = vec3(1.0, 0.0, 0.0);
-	// 			hitType = DIFF;
-	// 			hitObjectID = float(objectCount);
-	// 		}
-	// 		objectCount++;
-	// 	}
-	// }
 
-	// Use TraverseBVHTree to get all intersections within the BVH.
-	BVHHits hits = TraverseBVHTree(rayOrigin, rayDirection, t, normal, isRayExiting);
-
-	for(int i = 0; i < hits.count; i++) {
-		if(hits.hits[i].closestLeafVoxelIndex == -1) {
-			break;
+	// Lights.
+	for(int i = 0; i < uNumberOfVoxelLights; i++) {
+		Box light = getLightData(i);
+		d = BoxIntersect(light.minCorner, light.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
+		if(d < t) {
+			t = d;
+			hitNormal = normal;
+			hitEmission = light.emission;
+			hitColor = light.color;
+			hitType = light.type;
+			hitObjectID = float(objectCount);
 		}
+		objectCount++;
+	}
 
-		VoxelGeometry voxelGeometry = getVoxelGeometry(hits.hits[i].closestLeafVoxelIndex);
+	// Voxels.
+	// Transform the ray into the coordinateg space of the box containing the voxels.
+	for(int voxelIndex = 0; voxelIndex < uNumberOfVoxelGeometries; voxelIndex++) {
+		VoxelGeometry voxelGeometry = getVoxelGeometry(voxelIndex);
 		Box voxelBox = Box(vec3(-voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(voxelGeometry.gridDimensions * voxelGeometry.voxelSize * 0.5), vec3(0), vec3(1), DIFF);
 		rObjOrigin = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayOrigin, 1.0));
 		rObjDirection = vec3(voxelGeometry.voxelMeshInvMatrix * vec4(rayDirection, 0.0));
 		vec3 rObjOriginOriginal = rObjOrigin;
+		// Check if the ray will intersect with the voxel volume at all
 		d = BoxIntersect(voxelBox.minCorner, voxelBox.maxCorner, rObjOrigin, rObjDirection, normal, isRayExiting);
 		if(d < t) {
 			// If we have a hit with the volume, then translate the ray so that it is touching the box 
@@ -411,7 +336,7 @@ float SceneIntersect() {
 			if(voxelCoords != ivec3(-1)) {
 
 				// Back off the ray origin so that we don't mistakenly put it inside a voxel 
-			// rObjOrigin -= rObjDirection;
+				rObjOrigin -= rObjDirection;
 				// Scale voxel coordinate space to voxel model space 
 				vec3 voxelPosition = vec3(voxelCoords) * ((voxelBox.maxCorner - voxelBox.minCorner)) / voxelGeometry.gridDimensions;
 
@@ -423,9 +348,9 @@ float SceneIntersect() {
 				// Normalize cellIndex to a 0-1 range within the voxel geometry's local space.
 				vec3 normalizedCoords = vec3(voxelCoords) / voxelGeometry.gridDimensions;
 
-			// Map the normalized coordinates to the corresponding segment of the texture atlas.
-			// This is done by scaling the normalized coordinates to the size of the segment (textureMaxPosition - textureMinPosition)
-			// and then translating them to the starting position of the segment (textureMinPosition).
+				// Map the normalized coordinates to the corresponding segment of the texture atlas.
+				// This is done by scaling the normalized coordinates to the size of the segment (textureMaxPosition - textureMinPosition)
+				// and then translating them to the starting position of the segment (textureMinPosition).
 				vec3 atlasCoords = voxelGeometry.textureMinPosition + normalizedCoords * (voxelGeometry.textureMaxPosition - voxelGeometry.textureMinPosition);
 				vec4 voxelHitColor = texture(voxelTexture, atlasCoords).rgba;
 
@@ -443,13 +368,13 @@ float SceneIntersect() {
 				objectCount++;
 			}
 		}
+		objectCount++;
 	}
 
 	return t;
 }
 
 vec3 Get_Star_Field_Color(vec3 rDirection) {
-	// vec3 baseColor = vec3(0.0); // Dark sky background color
 	vec3 baseColor = vec3(0.0); // Dark sky background color
 	float starThreshold = 0.999; // Threshold to reduce the number of stars
 	float scale = 1.0; // Adjust scale to control the density of stars
@@ -614,8 +539,9 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 				continue;
 			}
 			dirToLight = sampleSphereLight(x, nl, testLightSphere, weight);
+			// dirToLight = sampleBoxLight(x, nl, testLight, weight);
 			mask /= diffuseCount == 1 ? 0.6 : 1.0;
-			mask *= weight * float(uNumberOfVoxelLights);
+			mask *= weight * float(uNumberOfVoxelLights) * 111.1;
 
 			rayDirection = dirToLight;
 			rayOrigin = x + nl * uEPS_intersect;
@@ -649,6 +575,7 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 				continue;
 			}
 			dirToLight = sampleSphereLight(x, nl, testLightSphere, weight);
+			// dirToLight = sampleBoxLight(x, nl, testLight, weight);
 			mask *= diffuseCount == 1 ? 2.0 : 1.0;
 			mask *= weight;// * float(uNumberOfVoxelLights);
 

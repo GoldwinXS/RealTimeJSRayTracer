@@ -2,18 +2,17 @@ import { Vector3 } from "three";
 import { PlayerControls } from "../camera/PlayerControls";
 
 export class GameManager {
-  starshipFile = "../../models/xwingColor.vox";
-  sunFile = "../../models/singleVoxelLight.vox";
-  tealSunFile = "../../models/tealLight.vox";
-  redSunFile = "../../models/redLight.vox";
-  tieFile = "../../models/tie.vox";
-  starDestroyerFile = "../../models/destroyer.vox";
-  falconFile = "../../models/falcon.vox";
-  enterpriseFile = "../../models/enterprise.vox";
-  deathStarChunk = "../../models/deathStarChunk.vox";
-  BlasterBoltFile = "../../models/blasterBolt.vox";
-  transparentCubeFile = "../../models/transparentCube.vox";
-  metalCubeFile = "../../models/metalCube.vox";
+  starshipFile = "models/xwingColor.vox";
+  sunFile = "models/singleVoxelLight.vox";
+  tealSunFile = "models/tealLight.vox";
+  redSunFile = "models/redLight.vox";
+  tieFile = "models/tie.vox";
+  starDestroyerFile = "models/destroyer.vox";
+  falconFile = "models/falcon.vox";
+  deathStarChunk = "models/deathStarChunk.vox";
+  BlasterBoltFile = "models/blasterBolt.vox";
+  transparentCubeFile = "models/transparentCube.vox";
+  metalCubeFile = "models/metalCube.vox";
   playerGeometry;
   playerControls;
   originPosition = new Vector3(0, 0, 0);
@@ -59,12 +58,24 @@ export class GameManager {
     });
   }
 
+  rotatePlayerModel() {
+    if (!this.playerGeometry) return;
+
+    // Increment rotation (around Y axis for a spin)
+    this.currentRotation += 1; // radians per frame
+    this.voxelManager.setGeomRotation(this.playerId, "y", this.currentRotation);
+  }
+
   constructor(voxelManager) {
     this.voxelManager = voxelManager;
   }
 
-  attachCamera(worldCamera) {
+  async attachCamera(worldCamera) {
     this.worldCamera = worldCamera;
+
+    // Move camera back and up so it can see the X-Wing and room
+    this.worldCamera.position.set(0, 200, 100); // Y = up, Z = back
+    this.worldCamera.lookAt(0, 0, 0); // Look at room center
   }
 
   async startGame() {
@@ -195,184 +206,97 @@ export class GameManager {
     }
   }
 
+  async setupRoom() {
+    const roomWidth = 5000;
+    const roomHeight = 4000;
+    const roomDepth = 5000;
+
+    // Half-dimensions for positioning
+    const hw = roomWidth / 2;
+    const hh = roomHeight / 2;
+    const hd = roomDepth / 2;
+
+    const scale = 60; // uniform scale of your deathStarChunk
+
+    // Floor (Y = -hh)
+    this.voxelManager.addGeometry(
+      this.deathStarChunk,
+      new Vector3(0, -hh, 0),
+      scale
+    );
+
+    // Ceiling (Y = +hh)
+    this.voxelManager.addGeometry(
+      this.deathStarChunk,
+      new Vector3(0, hh, 0),
+      scale
+    );
+
+    // Left wall (X = -hw)
+    this.voxelManager.addGeometry(
+      this.deathStarChunk,
+      new Vector3(-hw, 0, 0),
+      scale
+    );
+
+    // Right wall (X = +hw)
+    this.voxelManager.addGeometry(
+      this.deathStarChunk,
+      new Vector3(hw, 0, 0),
+      scale
+    );
+
+    // Back wall (Z = -hd)
+    this.voxelManager.addGeometry(
+      this.deathStarChunk,
+      new Vector3(0, 0, -hd),
+      scale
+    );
+
+    // Front wall (Z = +hd)
+    this.voxelManager.addGeometry(
+      this.deathStarChunk,
+      new Vector3(0, 0, hd),
+      scale
+    );
+  }
+
   async #setupGeometry() {
     // Add the player.
     this.playerId = await this.voxelManager.addGeometry(
       this.starshipFile,
-      // this.starDestroyerFile,
-      // this.sunFile,
-      // new Vector3(0, 1, 0),
-      this.distanceUp.multiplyScalar(1),
+      new Vector3(0, 0, -310),
       1
     );
     this.voxelManager.setGeomRotation(this.playerId, "z", 90);
     this.voxelManager.setGeomRotation(this.playerId, "x", -90);
     this.playerGeometry = this.voxelManager.voxelGeometries[this.playerId];
 
-    // [
-    //   100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200, 1300,
-    // ].forEach(async (posX) => {
-    //   await this.voxelManager.addGeometry(
-    //     this.starDestroyerFile,
-    //     new Vector3(posX - 300, Math.random() * 1000, Math.random() * 1000),
-    //     1
-    //   );
-    // });
-
-    // Add a lights
-    this.voxelManager.addGeometry(
-      this.sunFile,
-      new Vector3(0, 1000000, 0),
-      500000
-    );
-
-    // this.setupTrench();
-
-    this.voxelManager.addGeometry(this.starshipFile, new Vector3(0, 0, 200), 1);
-    this.voxelManager.addGeometry(
-      this.starshipFile,
-      new Vector3(0, 200, 400),
-      1
-    );
-    this.voxelManager.addGeometry(this.starshipFile, new Vector3(0, 0, 600), 1);
-    this.voxelManager.addGeometry(this.starshipFile, new Vector3(0, 0, 800), 1);
+    // Add the room and lights
+    await this.setupRoom();
+    this.voxelManager.addGeometry(this.sunFile, new Vector3(400, 0, 0), 50);
     // this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(200, 200, 200),
-    //   1
-    // );
-    // this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(400, 400, 400),
-    //   1
-    // );
-    // this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(600, 600, 600),
-    //   1
-    // );
-    // this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(800, 800, 800),
-    //   1
-    // );
-    // await this.voxelManager.addGeometry(
-    //   this.tealSunFile,
-    //   new Vector3(0, 0, -100),
-    //   50
-    // );
-
-    // await this.voxelManager.addGeometry(
     //   this.redSunFile,
-    //   new Vector3(0, -100, 100),
+    //   new Vector3(-400, 100, -20),
     //   50
     // );
-    // await this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(150, 2, 5),
-    //   1
-    // );
-    // for (let i = 0; i < 10; i++) {
-    //   this.voxelManager.addGeometry(
-    //     this.starshipFile,
-    //     new Vector3(150 * i, 2, 5),
-    //     1
-    //   );
-    //   this.voxelManager.addGeometry(
-    //     this.starshipFile,
-    //     new Vector3(150 * i, 2, 150),
-    //     1
-    //   );
-    // }
-    // await this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(5, 200, 5),
-    //   1
-    // );
 
-    // await this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(150, 2, 5),
-    //   1
-    // );
+    // Add some metallic and transparent blocks for lighting tests
+    const blockPositions = [
+      new Vector3(-200, -100, 100),
+      new Vector3(150, -50, -150),
+      new Vector3(0, 50, 200),
+      new Vector3(100, 100, 0),
+      new Vector3(-150, 0, -100),
+    ];
 
-    // await this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(300, 2, 5),
-    //   1
-    // );
+    for (let pos of blockPositions) {
+      // Alternate metallic and transparent
+      const file =
+        Math.random() > 0.5 ? this.metalCubeFile : this.transparentCubeFile;
+      await this.voxelManager.addGeometry(file, pos, 50);
+    }
 
-    // await this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(450, 2, 5),
-    //   1
-    // );
-    // await this.voxelManager.addGeometry(
-    //   this.starshipFile,
-    //   new Vector3(600, 2, 5),
-    //   1
-    // );
-    // [100, 200, 300, 400, 500, 600].forEach(async (posX) => {
-    //   await this.voxelManager.addGeometry(
-    //     [this.redSunFile, this.tealSunFile, this.sunFile][
-    //       Math.round(Math.random() * 2)
-    //     ],
-    //     new Vector3(Math.random() * 100, Math.random() * 100, posX * 2),
-    //     100
-    //   );
-    // });
-
-    // [100].forEach(async (posX) => {
-    //   this.voxelManager.addGeometry(
-    //     this.starDestroyerFile,
-    //     new Vector3(posX * 3, Math.random() * 2000, Math.random() * 2000),
-    //     4
-    //   );
-    // });
-    // [100, 200, 300, 400, 500].forEach(async (posX) => {
-    //   this.voxelManager.addGeometry(
-    //     this.starDestroyerFile,
-    //     new Vector3(posX * 3, Math.random() * 2000, Math.random() * 2000),
-    //     4
-    //   );
-    // });
-    // let numbers = [];
-    // for (let i = 1; i <= 4; i++) {
-    //   numbers.push(i * 100);
-    // }
-
-    // numbers.forEach(async (posX) => {
-    //   await this.voxelManager.addGeometry(
-    //     this.enterpriseFile,
-    //     new Vector3(posX - 600, Math.random() * 1000, Math.random() * 1000),
-    //     1
-    //   );
-    // });
-
-    // const destroyerID = await this.voxelManager.addGeometry(
-    //   this.starDestroyerFile,
-    //   new Vector3(400, 3000, -40),
-    //   20
-    // );
-    // this.voxelManager.setGeomRotation(destroyerID, "x", -90);
-
-    // const destroyerID2 = await this.voxelManager.addGeometry(
-    //   this.starDestroyerFile,
-    //   new Vector3(-200, 2400, 3000),
-    //   20
-    // );
-    // this.voxelManager.setGeomRotation(destroyerID2, "x", -90);
-
-    // const falconID = await this.voxelManager.addGeometry(
-    //   this.falconFile,
-    //   new Vector3(-200, 400, 2000),
-    //   1
-    // );
-    // this.voxelManager.setGeomRotation(falconID, "x", -90);
-
-    // await this.voxelManager.addGeometry(this.tealSunFile, this.distanceUp, 100);
-
-    // await this.voxelManager.update();
-    return this.playerGeometry;
+    return this.voxelManager.voxelGeometries[this.playerId];
   }
 }
