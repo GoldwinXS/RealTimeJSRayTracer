@@ -41,16 +41,16 @@ export class LightPuzzle {
 
   levelDefs = [
     {
-      name: "Level 1 — Light Through the Gap",
-      objective: "Walk through the gap, pick up the chrome slab [E], and carry it to the receptor pad.",
+      name: "Level 1 — The Gallery",
+      objective: "Walk through the gap [E to pick up], carry the chrome slab to the receptor pad.",
     },
     {
-      name: "Level 2 — Red Room",
-      objective: "Place the mirror on the pad. Red light bleeds onto every surface.",
+      name: "Level 2 — The Red Chamber",
+      objective: "Pick up the mirror and carry it to the right-side pad. Watch red GI flood everything.",
     },
     {
       name: "Level 3 — Teal Cascade",
-      objective: "Position both mirrors on their pads to complete the cascade.",
+      objective: "Carry both mirrors to the left-side pads to redirect the teal light.",
     },
   ];
 
@@ -136,72 +136,81 @@ export class LightPuzzle {
     else if (index === 2) await this.#setupLevel3();
   }
 
-  // ── Level 1: Light Through the Gap ─────────────────────────────────────────
+  // ── Level 1: The Gallery ────────────────────────────────────────────────────
   //
-  // A partial wall divides the room. A large white light panel sits behind it.
-  // From the entrance the player sees light beaming through the 200-unit gap.
-  // They carry the chrome mirror slab to the receptor pad in front of the gap.
-  // The path tracer shows the beam reflecting off the mirror — impossible to
-  // fake with rasterization.
-  //
-  // ONE light source. All geometry is diffuse or specular — no other emitters.
+  // Warm white GI from the back + a teal accent light in the upper-right corner.
+  // Two tall glass pillars between the entrance and the dividing wall show
+  // refraction. Chrome mirror panels on both side walls create deep reflections.
+  // The puzzle mirror waits in the light zone — player fetches it and carries
+  // it to the receptor pad.
   async #setupLevel1() {
     await this.#buildRoom();
 
-    // Dividing wall: two deathStarChunk panels leaving a 200-unit gap at center.
-    // Each panel: 300 wide × 400 tall × 20 deep.  sx=0.75, sy=1, sz=0.05.
-    // Left panel spans x:[-400, -100], right spans x:[100, 400].
+    // Dividing wall: 200-unit gap at center.
     await this.addGeomScaled(this.deathStarChunkFile, new Vector3(-250, 200, -290), 10, 0.75, 1, 0.05);
     await this.addGeomScaled(this.deathStarChunkFile, new Vector3( 250, 200, -290), 10, 0.75, 1, 0.05);
 
-    // ONE light source: large warm-white panel on the back wall (behind divider).
-    // sunFile = 1 voxel; at voxelSize=25, scale(6,6,1): 150×150×25 area light.
-    // The path tracer treats this as a soft area light — beautiful soft shadows.
-    await this.addGeomScaled(this.sunFile, new Vector3(0, 200, -598), 25, 6, 6, 1);
+    // Main warm-white area light: 150×150×25, upper-center of back wall.
+    // voxelSize=100 gives sampling sphere radius=80 → efficient direct sampling.
+    await this.addGeomScaled(this.sunFile, new Vector3(0, 320, -595), 100, 1.5, 1.5, 0.25);
 
-    // Receptor pad: flat chrome square directly in front of the gap.
-    // SPEC material means it mirrors the environment — it glints under the
-    // light beam, making it easy to spot without being a light source.
-    // metalCube 8 voxels × voxelSize=10, scale(2.5, 0.15, 2.5) → 200×12×200.
+    // Teal accent light: upper-right of back wall, adds cool teal GI to right half.
+    // Two tracked lights together are still low-noise with radius=48 sampling.
+    await this.addGeomScaled(this.tealLightFile, new Vector3(280, 280, -595), 60, 1.2, 1.2, 0.15);
+
+    // Tall glass pillars flanking the path (between entrance and dividing wall).
+    // Warm+teal GI refracts through them — path-tracer exclusive caustics.
+    // 40×200×40, sitting on the floor (center at y=100).
+    await this.addGeomScaled(this.transparentCubeFile, new Vector3(-150, 100, -180), 10, 4, 20, 4);
+    await this.addGeomScaled(this.transparentCubeFile, new Vector3( 150, 100, -180), 10, 4, 20, 4);
+
+    // Chrome mirror panels flush with both side walls (decorative).
+    // 10×300×400 — player sees reflected copies of the glass pillars and lights.
+    await this.addGeomScaled(this.metalCubeFile, new Vector3(-394, 200, -300), 100, 0.1, 3, 4);
+    await this.addGeomScaled(this.metalCubeFile, new Vector3( 394, 200, -300), 100, 0.1, 3, 4);
+
+    // Receptor pad: flat chrome square in front of the gap.
     await this.addGeomScaled(this.metalCubeFile, new Vector3(0, 6, -200), 10, 2.5, 0.15, 2.5);
     this.targets.push({ position: new Vector3(0, 6, -200), radius: 200 });
 
-    // Mirror slab: tall upright chrome panel the player carries.
-    // scale(1.5, 2.5, 0.2) → 120×200×16.  Starts in the light zone behind the dividing wall.
-    // Player must walk through the gap to retrieve it, then carry it back to the receptor pad.
+    // Puzzle mirror: behind the dividing wall in the warm light zone.
+    // Player walks through the gap to retrieve it, then carries it to the pad.
     const mirrorId = await this.addGeomScaled(
       this.metalCubeFile, new Vector3(0, 100, -430), 10, 1.5, 2.5, 0.2
     );
     this.pickupables.add(mirrorId);
   }
 
-  // ── Level 2: Red Room ───────────────────────────────────────────────────────
+  // ── Level 2: The Red Chamber ────────────────────────────────────────────────
   //
-  // A large red panel covers the left wall. The red light bleeds onto every
-  // surface — floor, ceiling, right wall. Two tall glass columns bend the
-  // light visibly as it passes through (refraction). The player carries the
-  // mirror to the receptor pad and watches new reflections appear.
-  //
-  // ONE light source (the red panel).
+  // A 15×350×500 red panel fills almost the entire left wall — the whole room
+  // turns red via GI color bleeding. Two tall chrome pillars in the center
+  // reflect the red environment in perfect specular chrome. One glass column
+  // on the right lets the player see red light bending through it.
+  // Carry the mirror from the left (red zone) to the right-side receptor pad.
   async #setupLevel2() {
     await this.#buildRoom();
 
-    // Large red light panel flush with left wall.
-    // redLightFile: 8×8×8 voxels, voxelSize=12, scale(1, 4, 0.15) → 96×384×14.
-    // Almost full wall height — fills the room with red GI.
-    await this.addGeomScaled(this.redLightFile, new Vector3(-393, 200, -300), 12, 1, 4, 0.15);
+    // Red area light: nearly fills the left wall.
+    // voxelSize=100, sx=0.15→15 thick, sy=3.5→350 tall, sz=5.0→500 deep.
+    // Sphere radius=80 for good direct sampling across the 800-unit-wide room.
+    await this.addGeomScaled(this.redLightFile, new Vector3(-394, 200, -300), 100, 0.15, 3.5, 5.0);
 
-    // Two tall glass columns spanning the room width.
-    // transparentCubeFile: 8×8×8 voxels, voxelSize=10, scale(1,3,1) → 80×240×80.
-    // The red light bends visibly as rays pass through — a path-tracer exclusive.
-    await this.addGeomScaled(this.transparentCubeFile, new Vector3(-130, 120, -320), 10, 1, 3, 1);
-    await this.addGeomScaled(this.transparentCubeFile, new Vector3( 130, 120, -320), 10, 1, 3, 1);
+    // Two tall chrome pillars in the room center — 50×200×50.
+    // Perfect specular chrome reflects the red GI in all directions.
+    await this.addGeomScaled(this.metalCubeFile, new Vector3(-80, 100, -350), 10, 5, 20, 5);
+    await this.addGeomScaled(this.metalCubeFile, new Vector3( 80, 100, -350), 10, 5, 20, 5);
 
-    // Receptor pad on the right side — in the "shadow" of the glass columns.
-    await this.addGeomScaled(this.metalCubeFile, new Vector3(280, 6, -450), 10, 2.5, 0.15, 2.5);
-    this.targets.push({ position: new Vector3(280, 6, -450), radius: 200 });
+    // Glass column on the right — 50×200×50.
+    // Red light visibly bends through the glass — a path-tracer exclusive.
+    await this.addGeomScaled(this.transparentCubeFile, new Vector3(280, 100, -400), 10, 5, 20, 5);
 
-    // Mirror slab — starts on the left (in the red light), carry it right.
+    // Receptor pad: right side of room (far from the red source).
+    await this.addGeomScaled(this.metalCubeFile, new Vector3(280, 6, -200), 10, 2.5, 0.15, 2.5);
+    this.targets.push({ position: new Vector3(280, 6, -200), radius: 200 });
+
+    // Puzzle mirror: starts near the entrance on the left side (bathed in red).
+    // Carry it across the room to the right-side pad.
     const mirrorId = await this.addGeomScaled(
       this.metalCubeFile, new Vector3(-200, 100, -120), 10, 1.5, 2.5, 0.2
     );
@@ -210,31 +219,32 @@ export class LightPuzzle {
 
   // ── Level 3: Teal Cascade ───────────────────────────────────────────────────
   //
-  // A large teal panel on the back-right wall floods the room with teal GI.
-  // Three glass columns refract the teal light. Two mirrors, two receptor pads.
-  // Placing both mirrors creates a cascade of teal reflections across the room,
-  // with GI color bleeding clearly visible on all diffuse surfaces.
-  //
-  // ONE light source (the teal panel).
+  // A 300×350×15 teal panel covers the right half of the back wall — strong
+  // teal GI floods the right side of the room. A large chrome block sits in
+  // the teal zone, bouncing teal light in every direction. Two glass columns
+  // refract the teal beam. Two mirrors to place on the left-side pads.
   async #setupLevel3() {
     await this.#buildRoom();
 
-    // Large teal panel on the back wall, offset to the right.
-    // tealLightFile: 8×8×8 voxels, voxelSize=12, scale(1.5, 4, 0.15) → 144×384×14.
-    await this.addGeomScaled(this.tealLightFile, new Vector3(200, 200, -598), 12, 1.5, 4, 0.15);
+    // Teal area light: right half of back wall, 300×350×15.
+    // voxelSize=100 → sphere radius=80.
+    await this.addGeomScaled(this.tealLightFile, new Vector3(200, 200, -595), 100, 3.0, 3.5, 0.15);
 
-    // Three glass columns — refraction of teal light visible from the entrance.
-    await this.addGeomScaled(this.transparentCubeFile, new Vector3(-200, 100, -280), 10, 1, 2.5, 1);
-    await this.addGeomScaled(this.transparentCubeFile, new Vector3(   0, 100, -360), 10, 1, 2.5, 1);
-    await this.addGeomScaled(this.transparentCubeFile, new Vector3( 200, 100, -280), 10, 1, 2.5, 1);
+    // Large chrome block in the teal zone: 100×120×100.
+    // Acts as a reflective "mirror ball" — scatters teal light across the room.
+    await this.addGeomScaled(this.metalCubeFile, new Vector3(250, 60, -500), 10, 10, 12, 10);
 
-    // Two receptor pads — left side, away from the teal source.
+    // Two glass columns in the center — show teal refraction.
+    await this.addGeomScaled(this.transparentCubeFile, new Vector3( 60, 100, -320), 10, 4, 20, 4);
+    await this.addGeomScaled(this.transparentCubeFile, new Vector3(-60, 100, -320), 10, 4, 20, 4);
+
+    // Two receptor pads on the left side, away from the teal source.
     await this.addGeomScaled(this.metalCubeFile, new Vector3(-280, 6, -200), 10, 2.5, 0.15, 2.5);
     await this.addGeomScaled(this.metalCubeFile, new Vector3(-280, 6, -450), 10, 2.5, 0.15, 2.5);
     this.targets.push({ position: new Vector3(-280, 6, -200), radius: 200 });
     this.targets.push({ position: new Vector3(-280, 6, -450), radius: 200 });
 
-    // Two mirror slabs — start on the right (near the teal source).
+    // Two puzzle mirrors: start on the right (in the teal light zone).
     const m1 = await this.addGeomScaled(
       this.metalCubeFile, new Vector3(150, 100, -120), 10, 1.5, 2.5, 0.2
     );
