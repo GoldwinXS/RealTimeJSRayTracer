@@ -342,6 +342,7 @@ export class VoxelGeometry {
         data[12 + i] = me[i];
       }
 
+      this.float32Data.data = data;
       this.needsUpdate = false;
       return data;
     } catch (error) {

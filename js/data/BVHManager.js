@@ -224,7 +224,6 @@ class BVHManager {
         this.addData(data, node, baseIndex);
       }
     });
-    this.debugPrintTextureData(data, textureSize);
     const texture = new THREE.DataTexture(
       data,
       textureSize,
@@ -232,7 +231,6 @@ class BVHManager {
       THREE.RGBAFormat,
       THREE.FloatType
     );
-    console.log("done adding data");
     texture.needsUpdate = true;
     return texture;
   }

@@ -1,24 +1,11 @@
 import * as THREE from "three";
 import Stats from 'three/examples/jsm/libs/stats.module.js';
-import { SpawnObjectManager } from "./js/SpawnObjectManager";
 
 export const sceneSettings = {
-  // Box Objects
-  tallBox: {
-    geometry: null,
-    material: null,
-    mesh: null,
-  },
-  shortBox: {
-    geometry: null,
-    material: null,
-    mesh: null,
-  },
   voxels: {
     voxelGeometry: null,
     voxelManager: null,
   },
-  spawnObjectManager: new SpawnObjectManager(),
   // Path Tracing Elements
   pathTracing: {
     vertexShader: null,
@@ -101,16 +88,6 @@ export const sceneSettings = {
   sampleCounter: 0.0,
   frameCounter: 1.0,
 
-  // Debugging Elements
-  debug: {
-    scene: new THREE.Scene(),
-    geometry: new THREE.BoxGeometry(1, 1, 1),
-    material: new THREE.MeshBasicMaterial({ color: 0x00ff00 }),
-    mesh: new THREE.Mesh(
-      new THREE.BoxGeometry(1, 1, 1),
-      new THREE.MeshBasicMaterial({ color: 0x00ff00 })
-    ),
-  },
   clock: new THREE.Clock(),
 };
 

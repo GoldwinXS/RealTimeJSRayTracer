@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import { VoxelGeometry } from "./VoxelGeometry";
-import { BVHManager } from "./BVHManager";
 import { TextureAtlasBuilder } from "./TextureAtlasBuilder";
 import { ShaderDataBuilder } from "./ShaderDataManager";
 import { SpecialColorManager } from "./SpecialColorManager";
@@ -43,9 +42,8 @@ export class VoxelGeometryManager {
   lightTextureSize;
   currentVoxelIndex = 0;
   totalVoxelGeometries = 0;
+  validGeometryCount = 0; // count reflected in current shaderData — safe to pass to the shader
   textureWidth;
-  bvh = new BVHManager();
-
   constructor() {
     this.worker = new Worker(
       new URL("./VoxelGeometryWorker.js", import.meta.url),
@@ -139,11 +137,12 @@ export class VoxelGeometryManager {
    * Removes a voxel geometry.
    * @param {number} id
    */
-  async removeGeometry(id) {
+  removeGeometry(id) {
     const geom = this.voxelGeometries[id];
     if (geom) {
       delete this.voxelGeometries[id];
       this.totalVoxelGeometries--;
+      this.needsUpdate = true;
     } else {
       console.warn(`Geometry ${id} not found.`);
     }
@@ -162,7 +161,6 @@ export class VoxelGeometryManager {
    */
   async update() {
     this.textureAtlasBuilder.packVoxelGeometries(this.voxelGeometries);
-    this.#createBVH();
     const geometriesData = Object.values(this.voxelGeometries).map((geometry) =>
       geometry.serialize()
     );
@@ -199,12 +197,6 @@ export class VoxelGeometryManager {
       // Send the data to the worker to initiate the update process
       this.worker.postMessage({ action: "update", data: data });
     });
-  }
-
-  #createBVH() {
-    const node = this.bvh.constructBVH(Object.values(this.voxelGeometries), 0);
-    this.uBVHTexture = this.bvh.nodeToTexture(node);
-    this.uBVHTextureSize = this.uBVHTexture.source.data.width;
   }
 
   #createVoxelTexture(atlasData, maxTextureDimensions) {
@@ -246,6 +238,9 @@ export class VoxelGeometryManager {
     );
     this.shaderData = dataTexture;
     this.textureWidth = textureWidth;
+    // validGeometryCount is updated here, in sync with shaderData, so the shader
+    // uniform never reads beyond the end of the data texture.
+    this.validGeometryCount = Object.keys(this.voxelGeometries).length;
     const { lightTexture, lightTextureSize } = this.#encodeLightsIntoDataTexture();
     this.lightTexture = lightTexture;
     this.lightTextureSize = lightTextureSize;

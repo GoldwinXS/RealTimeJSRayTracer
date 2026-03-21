@@ -35,17 +35,8 @@ function initSceneData(sceneSettings) {
   container.appendChild(sceneSettings.stats.domElement);
   container.appendChild(sceneSettings.renderer.domElement);
 
-  // Initialize Debug Mesh
-  sceneSettings.debug.mesh = new THREE.Mesh(
-    sceneSettings.debug.geometry,
-    sceneSettings.debug.material
-  );
-
   // Add worldCamera to pathTracing.scene
   sceneSettings.pathTracing.scene.add(sceneSettings.worldCamera);
-  sceneSettings.debug.material = new THREE.MeshBasicMaterial({
-    color: 0x00ff00,
-  }); // Green color
 
   // Set or change any needed scene data
   // sceneSettings.sceneIsDynamic = true;
@@ -73,7 +64,7 @@ function initSceneData(sceneSettings) {
     value: sceneSettings.voxels.voxelManager.shaderData,
   };
   pathTracingUniforms.uNumberOfVoxelGeometries = {
-    value: sceneSettings.voxels.voxelManager.totalVoxelGeometries,
+    value: sceneSettings.voxels.voxelManager.validGeometryCount,
   };
   pathTracingUniforms.uVoxelDataTextureWidth = {
     value: sceneSettings.voxels.voxelManager.textureWidth,
@@ -161,9 +152,6 @@ function setupPathTracing(sceneSettings) {
 function animate() {
   // Extract any changes from the UI
   importFromWindow(sceneSettings, uiStatePropertyNames);
-  sceneSettings.spawnObjectManager.executeCommands(
-    sceneSettings.voxels.voxelManager
-  );
   // reset flags
   sceneSettings.cameraIsMoving = false;
   sceneSettings.frameTime = sceneSettings.clock.getDelta();
@@ -189,14 +177,6 @@ function animate() {
   // Update scene specific uniforms
   let pathTracingUniforms = sceneSettings.pathTracing.uniforms;
 
-  pathTracingUniforms.uBVHTexture = {
-    value: sceneSettings.voxels.voxelManager.uBVHTexture,
-  };
-
-  pathTracingUniforms.uBVHTextureSize = {
-    value: sceneSettings.voxels.voxelManager.uBVHTextureSize,
-  };
-
   pathTracingUniforms.voxelTexture = {
     value: sceneSettings.voxels.voxelManager.voxelTexture,
   };
@@ -204,7 +184,7 @@ function animate() {
     value: sceneSettings.voxels.voxelManager.shaderData,
   };
   pathTracingUniforms.uNumberOfVoxelGeometries = {
-    value: sceneSettings.voxels.voxelManager.totalVoxelGeometries,
+    value: sceneSettings.voxels.voxelManager.validGeometryCount,
   };
   pathTracingUniforms.uVoxelDataTextureWidth = {
     value: sceneSettings.voxels.voxelManager.textureWidth,
