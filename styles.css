@@ -85,6 +85,27 @@ body {
     min-height: 1em;
 }
 
+/* Mobile control hint — only visible on touch devices */
+#mobile-hint {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: monospace;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    background: rgba(0, 0, 0, 0.5);
+    padding: 5px 14px;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 500;
+}
+
+@media (hover: none) and (pointer: coarse) {
+    #mobile-hint { display: block; }
+}
+
 /* Level complete banner */
 #hud-complete {
     display: none;

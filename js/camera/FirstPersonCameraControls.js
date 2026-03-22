@@ -18,12 +18,16 @@ export class FirstPersonCameraControls {
     this.yawObject.add(this.pitchObject);
     this.isPaused = true;
 
+    this.touchJoystick = { active: false, id: null, startX: 0, startY: 0, dx: 0, dy: 0 };
+    this.touchLook = { active: false, id: null, lastX: 0, lastY: 0 };
+
     this.boundOnMouseMove = this.onMouseMove.bind(this);
     this.boundOnKeyDown = this.onKeyDown.bind(this);
     this.boundOnKeyUp = this.onKeyUp.bind(this);
 
     this.#setCurrentControls();
     this.#addPointerLockEventListeners();
+    this.#addTouchEventListeners();
     this.enable();
   }
 
@@ -64,6 +68,27 @@ export class FirstPersonCameraControls {
       cameraFlightSpeed,
       frameTime
     );
+
+    // Touch joystick movement (left-half drag)
+    if (this.touchJoystick.active) {
+      const { dx, dy } = this.touchJoystick;
+      const deadzone = 15;
+      const scale = 1 / 120;
+      const fwd = Math.max(-1, Math.min(1, -dy * scale));
+      const right = Math.max(-1, Math.min(1, dx * scale));
+      if (Math.abs(fwd) > deadzone * scale) {
+        const movement = this.cameraVectors.directionVector.clone()
+          .multiplyScalar(cameraFlightSpeed * frameTime * fwd);
+        this.currentControls.object.position.add(movement);
+        cameraIsMoving = true;
+      }
+      if (Math.abs(right) > deadzone * scale) {
+        const movement = this.cameraVectors.rightVector.clone()
+          .multiplyScalar(cameraFlightSpeed * frameTime * right);
+        this.currentControls.object.position.add(movement);
+        cameraIsMoving = true;
+      }
+    }
 
     return cameraIsMoving;
   }
@@ -113,6 +138,63 @@ export class FirstPersonCameraControls {
       -this.PI_2,
       Math.min(this.PI_2, this.pitchObject.rotation.x)
     );
+  }
+
+  #addTouchEventListeners() {
+    const opts = { passive: false };
+    document.addEventListener('touchstart',  this.#onTouchStart.bind(this),  opts);
+    document.addEventListener('touchmove',   this.#onTouchMove.bind(this),   opts);
+    document.addEventListener('touchend',    this.#onTouchEnd.bind(this),    opts);
+    document.addEventListener('touchcancel', this.#onTouchEnd.bind(this),    opts);
+  }
+
+  #onTouchStart(event) {
+    event.preventDefault();
+    window.isPaused = false; // enable controls without pointer lock on touch devices
+    for (const touch of event.changedTouches) {
+      const isLeft = touch.clientX < window.innerWidth / 2;
+      if (isLeft && !this.touchJoystick.active) {
+        this.touchJoystick = {
+          active: true, id: touch.identifier,
+          startX: touch.clientX, startY: touch.clientY, dx: 0, dy: 0,
+        };
+      } else if (!isLeft && !this.touchLook.active) {
+        this.touchLook = {
+          active: true, id: touch.identifier,
+          lastX: touch.clientX, lastY: touch.clientY,
+        };
+      }
+    }
+  }
+
+  #onTouchMove(event) {
+    event.preventDefault();
+    for (const touch of event.changedTouches) {
+      if (touch.identifier === this.touchJoystick.id) {
+        this.touchJoystick.dx = touch.clientX - this.touchJoystick.startX;
+        this.touchJoystick.dy = touch.clientY - this.touchJoystick.startY;
+      } else if (touch.identifier === this.touchLook.id) {
+        const dx = touch.clientX - this.touchLook.lastX;
+        const dy = touch.clientY - this.touchLook.lastY;
+        this.yawObject.rotation.y -= dx * 0.005 * this.cameraRotationSpeed;
+        this.pitchObject.rotation.x -= dy * 0.004 * this.cameraRotationSpeed;
+        this.pitchObject.rotation.x = Math.max(
+          -this.PI_2, Math.min(this.PI_2, this.pitchObject.rotation.x)
+        );
+        this.touchLook.lastX = touch.clientX;
+        this.touchLook.lastY = touch.clientY;
+      }
+    }
+  }
+
+  #onTouchEnd(event) {
+    for (const touch of event.changedTouches) {
+      if (touch.identifier === this.touchJoystick.id) {
+        this.touchJoystick = { active: false, id: null, startX: 0, startY: 0, dx: 0, dy: 0 };
+      } else if (touch.identifier === this.touchLook.id) {
+        this.touchLook = { active: false, id: null, lastX: 0, lastY: 0 };
+      }
+    }
   }
 
   #addPointerLockEventListeners() {

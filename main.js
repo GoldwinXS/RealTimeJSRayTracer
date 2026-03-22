@@ -46,7 +46,7 @@ function initSceneData(sceneSettings) {
   // Add meshes.
   let hdrLoader = new RGBELoader();
   hdrLoader.type = THREE.FloatType; // override THREE's default of HalfFloatType
-  sceneSettings.worldCamera.position.set(0, 100, 100);
+  sceneSettings.worldCamera.position.set(0, 0, 0);
   sceneSettings.controls = new FirstPersonCameraControls(
     sceneSettings.worldCamera
   );

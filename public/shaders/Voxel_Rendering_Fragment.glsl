@@ -374,35 +374,10 @@ float SceneIntersect()
 	return t;
 }
 
-vec3 Get_Star_Field_Color(vec3 rDirection) {
-	vec3 baseColor = vec3(0.0); // Dark sky background color
-	float starThreshold = 0.999; // Threshold to reduce the number of stars
-	float scale = 1.0; // Adjust scale to control the density of stars
-
-    // Normalize rDirection to ensure it's a unit vector
-	rDirection = normalize(rDirection);
-
-    // Convert rDirection from Cartesian to spherical coordinates (longitude and latitude)
-	float longitude = atan(rDirection.z, rDirection.x) / PI;
-	float latitude = asin(rDirection.y) / PI; // Use asin for latitude to spread stars more evenly
-
-    // Apply a scaling factor to adjust the star distribution
-	vec2 scaledCoords = vec2(longitude, latitude) * scale;
-
-    // Sample the blue noise texture with the adjusted spherical coordinates
-	vec3 noiseValue = texture2D(tBlueNoiseTexture, fract(scaledCoords)).rgb;
-
-    // Determine if the current pixel should display a star based on the noise value
-	if(noiseValue.r > starThreshold) {
-		float brightness = fract(noiseValue.g * 20.0) * 0.5 + 0.5; // Modulate star brightness
-		vec3 starColor = vec3(1.0); // White stars for simplicity, adjust for color variations
-
-        // Add the star's brightness and color to the base sky color
-		return baseColor + starColor * brightness;
-	}
-
-    // Return the base sky color where there are no stars
-	return baseColor;
+vec3 Get_Star_Field_Color(vec3) {
+	// Very dark warm grey for the corridor/void between galleries.
+	// Not pure black so the archway passages don't look like holes.
+	return vec3(0.018, 0.013, 0.008);
 }
 
 vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float objectID, out float pixelSharpness)
