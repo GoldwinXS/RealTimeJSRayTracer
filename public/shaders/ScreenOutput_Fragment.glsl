@@ -349,8 +349,8 @@ void main()
 				filteredPixelColor = mix(edgePixelColor, centerPixel.rgb, clamp(uSampleCounter * uEdgeSharpenSpeed, 0.0, 1.0));
 			else if (centerPixel.a == -1.0) // -1.0 means glass / transparent surfaces, must get sharper fairly quickly
 				filteredPixelColor = mix(filteredPixelColor, centerPixel.rgb, clamp(uSampleCounter * 0.01, 0.0, 1.0));
-			// else // else this is a diffuse surface, so we can take our time converging. That way, there will be minimal noise 
-			//  	filteredPixelColor = mix(filteredPixelColor, centerPixel.rgb, clamp(uSampleCounter * uFilterDecaySpeed, 0.0, 1.0));
+			else // diffuse surface: gradually converge from blurred to sharp as samples accumulate
+				filteredPixelColor = mix(filteredPixelColor, centerPixel.rgb, clamp(uSampleCounter * uFilterDecaySpeed, 0.0, 1.0));
 		} // else camera is moving
 		else if (centerPixel.a == 1.01) // 1.01 means pixel is on an edge, must remain sharper
 		{
@@ -372,8 +372,6 @@ void main()
 
 	// apply tone mapping (brings pixel into 0.0-1.0 rgb color range)
 	filteredPixelColor = uUseToneMapping ? ReinhardToneMapping(filteredPixelColor) : filteredPixelColor;
-	//filteredPixelColor = OptimizedCineonToneMapping(filteredPixelColor);
-	//filteredPixelColor = ACESFilmicToneMapping(filteredPixelColor);
 
 	// lastly, apply gamma correction (gives more intensity/brightness range where it's needed)
 	pc_fragColor = vec4(sqrt(filteredPixelColor), 1.0);

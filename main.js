@@ -83,8 +83,7 @@ function initSceneData(sceneSettings) {
 
 function setupPathTracing(sceneSettings) {
   // setup scene/demo-specific objects, variables, GUI elements, and data
-  // REDMINDER: set to false for production
-  sceneSettings.renderer.debug.checkShaderErrors = true;
+  sceneSettings.renderer.debug.checkShaderErrors = false;
   sceneSettings.renderer.autoClear = false;
   sceneSettings.renderer.toneMapping = THREE.ReinhardToneMapping;
 
@@ -226,30 +225,49 @@ function animate() {
     "<br>" +
     `Approx. Number of Rays: ${numberOfRays}`;
 
-  // Decide whether or not to reset sample and frame count basaed on whether or not the scene is dynamic.
-  const { sampleCounter, frameCounter } = handleSceneDynamism(sceneSettings);
-  sceneSettings.sampleCounter = sampleCounter;
-  sceneSettings.frameCounter = frameCounter;
-
-  // Update pathtracing uniforms that must change on every frame.
-  updateAnimatedPathtracingUniforms(sceneSettings);
-
-  if (sceneSettings.windowIsBeingResized) {
-    sceneSettings.cameraIsMoving = true;
-    sceneSettings.windowIsBeingResized = false;
-  }
-
-  // CAMERA
+  // Update camera world matrix so we can detect movement this frame (not next).
   sceneSettings.controls.yawObject.updateMatrixWorld(true);
   sceneSettings.pathTracing.uniforms.uCameraMatrix.value.copy(
     sceneSettings.worldCamera.matrixWorld
   );
+
+  // Detect camera movement by comparing the world matrix to the previous frame.
+  // handleInput() doesn't reliably return a boolean, so we use the matrix instead.
+  if (sceneSettings.windowIsBeingResized) {
+    sceneSettings.cameraIsMoving = true;
+    sceneSettings.windowIsBeingResized = false;
+  }
+  const camElems = sceneSettings.worldCamera.matrixWorld.elements;
+  if (!sceneSettings._prevCamElems) {
+    sceneSettings._prevCamElems = camElems.slice();
+  } else {
+    for (let i = 0; i < 16; i++) {
+      if (Math.abs(camElems[i] - sceneSettings._prevCamElems[i]) > 1e-6) {
+        sceneSettings.cameraIsMoving = true;
+        break;
+      }
+    }
+    sceneSettings._prevCamElems = camElems.slice();
+  }
+
+  // Decide whether or not to reset sample and frame count based on whether or not the scene is dynamic.
+  const { sampleCounter, frameCounter, cameraRecentlyMoving } = handleSceneDynamism({
+    ...sceneSettings,
+    pathTracingUniforms: sceneSettings.pathTracing.uniforms,
+  });
+  sceneSettings.sampleCounter = sampleCounter;
+  sceneSettings.frameCounter = frameCounter;
+  sceneSettings.cameraRecentlyMoving = cameraRecentlyMoving;
+
+  // Update pathtracing uniforms that must change on every frame.
+  updateAnimatedPathtracingUniforms(sceneSettings);
 
   sceneSettings.screenOutput.uniforms.uSampleCounter.value =
     sceneSettings.sampleCounter;
   // PROGRESSIVE SAMPLE WEIGHT (reduces intensity of each successive animation frame's image)
   sceneSettings.screenOutput.uniforms.uOneOverSampleCounter.value =
     1.0 / sceneSettings.sampleCounter;
+
 
   // RENDERING in 3 steps
 

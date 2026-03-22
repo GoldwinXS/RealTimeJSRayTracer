@@ -104,14 +104,16 @@ export function handleSceneDynamism({
     frameCounter += 1.0;
     if (!cameraRecentlyMoving) {
       // record current sampleCounter before it gets set to 1.0 below
-      pathTracingUniforms.uPreviousSampleCount.value = sampleCounter;
+      if (pathTracingUniforms?.uPreviousSampleCount) {
+        pathTracingUniforms.uPreviousSampleCount.value = sampleCounter;
+      }
       frameCounter = 1.0;
       cameraRecentlyMoving = true;
     }
     sampleCounter = 1.0;
   }
 
-  return { sampleCounter, frameCounter };
+  return { sampleCounter, frameCounter, cameraRecentlyMoving };
 }
 
 export function updateAnimatedPathtracingUniforms({

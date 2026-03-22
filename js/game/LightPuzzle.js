@@ -25,8 +25,8 @@ import { Vector3 } from "three";
  */
 export class LightPuzzle {
   // ── Model paths ────────────────────────────────────────────────────────────
-  sunFile          = "models/singleVoxelLight.vox"; // 1×1×1, warm-white LIGHT
-  tealLightFile    = "models/tealLight.vox";         // 1×1×1, teal LIGHT
+  sunFile          = "models/warmLight.vox";     // 1×1×1, warm-white LIGHT (clean single-voxel file)
+  tealLightFile    = "models/tealLightClean.vox"; // 1×1×1, teal LIGHT (clean single-voxel file)
   metalCubeFile    = "models/metalCube.vox";         // 1×1×1, SPEC (mirror)
   transparentCubeFile = "models/transparentCube.vox"; // 1×1×1, REFR (glass)
   deathStarChunkFile  = "models/deathStarChunk.vox";  // 40×40×40, DIFF (grey)
@@ -43,11 +43,11 @@ export class LightPuzzle {
 
   galleryDefs = [
     {
-      name: "Gallery I — Colour Bleeding",
+      name: "Gallery I — Indirect Illumination",
       description:
-        "Two lights wash the coloured walls with white light. The walls " +
-        "absorb most wavelengths and bounce the rest as colour — orange left, " +
-        "purple right. The grey cubes pick up that colour just by being nearby. " +
+        "Two ceiling lights — warm white and teal — bounce off the coloured walls " +
+        "as indirect light. The glass cube refracts both colours; the orange cube " +
+        "bleeds its own hue onto its neighbours; the chrome cube mirrors the room. " +
         "Stand still to let the image converge.",
       forwardTriggerZ: -560,
       forwardPromptZ:  -430,
@@ -136,48 +136,55 @@ export class LightPuzzle {
 
   async #buildRoom(withBackArchway = true, frontWall = 'solid') {
     const v = 10; // base voxelSize for wall panels
-    // Floor  — 800×20×600,  top at y=0
-    await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, -10, -300),  v, 2, 0.05, 1.5);
-    // Ceiling — 800×20×600,  bottom at y=400
-    await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 410, -300),  v, 2, 0.05, 1.5);
-    // Left wall  — 20×400×600
-    await this.addGeomScaled(this.deathStarChunkFile, new Vector3(-410, 200, -300), v, 0.05, 1, 1.5);
-    // Right wall — 20×400×600
-    await this.addGeomScaled(this.deathStarChunkFile, new Vector3(410, 200, -300),  v, 0.05, 1, 1.5);
+
+    // All panels overlap adjacent surfaces by ~20–30 world units to seal corner seams.
+    // Floor and ceiling extend slightly past both the front and back wall planes.
+    // Side walls similarly extend in z. Back/front walls are wider and taller than
+    // the interior so they overlap the side walls and floor/ceiling.
+
+    // Floor — top at y=0, extended in z to overlap both end walls
+    await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, -10, -310),  v, 2.2, 0.05, 1.65);
+    // Ceiling — bottom at y=400, same z extension
+    await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 410, -310),  v, 2.2, 0.05, 1.65);
+    // Left wall — extended in z and y to overlap floor/ceiling and end walls
+    await this.addGeomScaled(this.deathStarChunkFile, new Vector3(-410, 200, -310), v, 0.05, 1.1, 1.65);
+    // Right wall
+    await this.addGeomScaled(this.deathStarChunkFile, new Vector3( 410, 200, -310), v, 0.05, 1.1, 1.65);
 
     // ── Back wall ──────────────────────────────────────────────────────────
+    // Centre moved 10 units into the room (z=-600→-590 interior face) so the
+    // floor/ceiling z extensions overlap the back wall, sealing the corners.
     if (!withBackArchway) {
-      // Solid back wall — 800×400×20
-      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 200, -610), v, 2, 1, 0.05);
+      // Solid — wider and taller to overlap side walls and floor/ceiling
+      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 200, -600), v, 2.2, 1.1, 0.05);
     } else {
-      // Back wall with archway gap (x:[-100,100], y:[0,280])
-      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(-250, 200, -610), v, 0.75, 1, 0.05);
-      await this.addGeomScaled(this.deathStarChunkFile, new Vector3( 250, 200, -610), v, 0.75, 1, 0.05);
-      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 340, -610), v, 0.5, 0.3, 0.05);
-      // Chrome door frame
-      await this.addGeomScaled(this.metalCubeFile, new Vector3(-100, 140, -608), 100, 0.1, 2.8, 0.1);
-      await this.addGeomScaled(this.metalCubeFile, new Vector3( 100, 140, -608), 100, 0.1, 2.8, 0.1);
-      await this.addGeomScaled(this.metalCubeFile, new Vector3(0, 280, -608), 100, 2.2, 0.1, 0.1);
-      await this.addGeomScaled(this.metalCubeFile, new Vector3(0, 2, -585), 100, 2, 0.02, 0.4);
+      // Left panel: x:[-440,-100], overlaps left wall; y:[-20,420], overlaps floor/ceiling
+      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(-270, 200, -600), v, 0.85, 1.1, 0.05);
+      // Right panel: x:[100,440]
+      await this.addGeomScaled(this.deathStarChunkFile, new Vector3( 270, 200, -600), v, 0.85, 1.1, 0.05);
+      // Top panel: x:[-100,100], y:[280,420]
+      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 350, -600), v, 0.5, 0.35, 0.05);
+      // Chrome door frame — flush with interior face at z=-590
+      await this.addGeomScaled(this.metalCubeFile, new Vector3(-100, 140, -590), 100, 0.1, 2.8, 0.1);
+      await this.addGeomScaled(this.metalCubeFile, new Vector3( 100, 140, -590), 100, 0.1, 2.8, 0.1);
+      await this.addGeomScaled(this.metalCubeFile, new Vector3(0, 280, -590), 100, 2.2, 0.1, 0.1);
+      // Chrome threshold strip inside the room
+      await this.addGeomScaled(this.metalCubeFile, new Vector3(0, 2, -565), 100, 2, 0.02, 0.4);
     }
 
     // ── Front wall ─────────────────────────────────────────────────────────
-    // Centred at z=30 (spanning z=20–40) so the camera's default origin
-    // at (0,0,0) is never inside the wall geometry on the first frame.
     if (frontWall === 'solid') {
-      // Full front wall — 800×400×20. Blocks the void for the first gallery.
-      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 200, 30), v, 2, 1, 0.05);
+      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 200, 20), v, 2.2, 1.1, 0.05);
     } else if (frontWall === 'archway') {
-      // Front wall with archway gap so the player can walk back out.
-      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(-250, 200, 30), v, 0.75, 1, 0.05);
-      await this.addGeomScaled(this.deathStarChunkFile, new Vector3( 250, 200, 30), v, 0.75, 1, 0.05);
-      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 340, 30), v, 0.5, 0.3, 0.05);
-      // Chrome door frame (mirrored, faces inside the room)
-      await this.addGeomScaled(this.metalCubeFile, new Vector3(-100, 140,  28), 100, 0.1, 2.8, 0.1);
-      await this.addGeomScaled(this.metalCubeFile, new Vector3( 100, 140,  28), 100, 0.1, 2.8, 0.1);
-      await this.addGeomScaled(this.metalCubeFile, new Vector3(0,   280,   28), 100, 2.2, 0.1, 0.1);
-      // Chrome threshold strip 25 units inside the room from the wall face (z=20)
-      await this.addGeomScaled(this.metalCubeFile, new Vector3(0,     2,  -5), 100, 2, 0.02, 0.4);
+      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(-270, 200, 20), v, 0.85, 1.1, 0.05);
+      await this.addGeomScaled(this.deathStarChunkFile, new Vector3( 270, 200, 20), v, 0.85, 1.1, 0.05);
+      await this.addGeomScaled(this.deathStarChunkFile, new Vector3(0, 350, 20), v, 0.5, 0.35, 0.05);
+      // Chrome door frame — flush with interior face at z=10
+      await this.addGeomScaled(this.metalCubeFile, new Vector3(-100, 140,  10), 100, 0.1, 2.8, 0.1);
+      await this.addGeomScaled(this.metalCubeFile, new Vector3( 100, 140,  10), 100, 0.1, 2.8, 0.1);
+      await this.addGeomScaled(this.metalCubeFile, new Vector3(0,   280,   10), 100, 2.2, 0.1, 0.1);
+      // Chrome threshold strip
+      await this.addGeomScaled(this.metalCubeFile, new Vector3(0, 2, -5), 100, 2, 0.02, 0.4);
     }
   }
 
@@ -198,43 +205,41 @@ export class LightPuzzle {
     else if (index === 2) await this.#setupGallery3();
   }
 
-  // ── Gallery 1: Indirect Illumination ────────────────────────────────────────
+  // ── Gallery 1: Colour Bleeding ───────────────────────────────────────────────
   //
-  // The ceiling light only reaches x:±200 — the coloured wall panels at x:±390
-  // barely receive any direct light and therefore bounce almost nothing. To make
-  // GI bleeding obvious, two "wall-wash" lights are mounted near the ceiling
-  // above each coloured wall. Each wash light floods its wall with direct white
-  // light; the wall absorbs most wavelengths and reflects the rest (orange or
-  // purple), casting a strong coloured glow across the floor and the nearby grey
-  // cube. The centre cube receives a blend of both colours. This is the same
-  // role a photographer's coloured gel spotlight plays when pointed at a backdrop.
+  // Cornell Box-inspired GI demo. Two ceiling strip lights (warm-white left,
+  // teal right) sit at y=370 — spans y:[350,390], 10 units below the ceiling
+  // interior at y=400, so no geometry overlap. voxelSize=40, halfSize=16,
+  // half-height=20 > 16 ✓.
+  //
+  // Orange DIFF panel on the left wall and purple on the right absorb the
+  // direct light and re-emit coloured GI. Three grey diffuse cubes on chrome
+  // plinths catch the mixed colour bleed: left cube shows warm-orange, right
+  // shows teal-purple, centre shows both blended. Stand still to converge.
   async #setupGallery1() {
     await this.#buildRoom(true, 'solid');
 
-    // ── Wall-wash lights ──────────────────────────────────────────────────
-    // Warm-white emitters positioned above each coloured wall. They flood the
-    // panel with direct white light so the panel has enough incoming energy to
-    // bounce strong coloured GI into the room. No centre fill — the room stays
-    // dark so shadows and colour gradients are clearly visible.
-    await this.addGeomScaled(this.sunFile, new Vector3(-350, 368, -300), 100, 0.3, 1.0, 1);
-    await this.addGeomScaled(this.sunFile, new Vector3( 350, 368, -300), 100, 0.3, 1.0, 1);
+    // ── Ceiling strip lights (near-ceiling, no overlap) ───────────────────
+    // Two flat strips side by side. x:[−140,−60] and x:[60,140]. z:[−460,−140].
+    await this.addGeomScaled(this.sunFile,       new Vector3(-100, 370, -300), 40, 2, 1.0, 8);
+    await this.addGeomScaled(this.tealLightFile,  new Vector3( 100, 370, -300), 40, 2, 1.0, 8);
 
-    // ── Coloured diffuse panels ───────────────────────────────────────────
-    // DIFF material — they reflect white light as coloured GI, not emit it.
-    // Orange panel on left wall: 10×300×500
+    // ── Coloured diffuse wall panels ──────────────────────────────────────
     await this.addGeomScaled(this.orangeBlockFile, new Vector3(-390, 200, -300), 100, 0.1, 3, 5);
-    // Purple panel on right wall: 10×300×500
     await this.addGeomScaled(this.purpleBlockFile, new Vector3( 390, 200, -300), 100, 0.1, 3, 5);
 
-    // ── Diffuse sculpture cubes ───────────────────────────────────────────
-    // Moved close to the coloured walls (only ~15 units gap) so inverse-
-    // square law gives them a very strong GI dose. The left cube face
-    // nearest the orange wall will visibly pick up the orange tint; the right
-    // cube picks up purple. The centre cube shows both weakly, for comparison.
-    await this.addGeomScaled(this.deathStarChunkFile, new Vector3(-310, 40, -380), 2, 1, 1, 1);
-    await this.addGeomScaled(this.deathStarChunkFile, new Vector3(   0, 40, -380), 2, 1, 1, 1);
-    await this.addGeomScaled(this.deathStarChunkFile, new Vector3( 310, 40, -380), 2, 1, 1, 1);
-
+    // ── Showcase cubes on chrome plinths ──────────────────────────────────
+    // Plinths: metalCube, voxelSize=10, sx=12, sy=0.5, sz=12 → 120×5×120
+    // Center y=2.5 → top at y=5. Cubes (80×80×80) sit center y=45 → base y=5 ✓
+    await this.addGeomScaled(this.metalCubeFile, new Vector3(-200, 2.5, -380), 10, 12, 0.5, 12);
+    await this.addGeomScaled(this.metalCubeFile, new Vector3(   0, 2.5, -400), 10, 12, 0.5, 12);
+    await this.addGeomScaled(this.metalCubeFile, new Vector3( 200, 2.5, -380), 10, 12, 0.5, 12);
+    // Left: glass (REFR) — refracts the warm-white and teal ceiling lights
+    await this.addGeomScaled(this.transparentCubeFile, new Vector3(-200, 45, -380), 80, 1, 1, 1);
+    // Centre: orange diffuse (DIFF) — bounces coloured GI onto neighbours
+    await this.addGeomScaled(this.orangeBlockFile, new Vector3(0, 45, -400), 80, 1, 1, 1);
+    // Right: chrome (SPEC) — mirrors the whole room
+    await this.addGeomScaled(this.metalCubeFile, new Vector3( 200, 45, -380), 80, 1, 1, 1);
   }
 
   // ── Gallery 2: Specular Reflections ──────────────────────────────────────
@@ -246,7 +251,7 @@ export class LightPuzzle {
     await this.#buildRoom(true, 'archway');
 
     // Ceiling light strip — runs the length of the room
-    await this.addGeomScaled(this.sunFile, new Vector3(0, 368, -300), 100, 1.0, 1.0, 5);
+    await this.addGeomScaled(this.sunFile, new Vector3(0, 340, -300), 100, 1.0, 1.0, 5);
 
     // Chrome floor inlay — narrow central path
     await this.addGeomScaled(this.metalCubeFile, new Vector3(0, 1, -300), 100, 0.6, 0.01, 6);
@@ -277,9 +282,9 @@ export class LightPuzzle {
     // ── Two ceiling lights ────────────────────────────────────────────────
     // scale_y=1.0 hides sampling cube on both lights.
     // Warm-white, left side: 300×100×300
-    await this.addGeomScaled(this.sunFile,       new Vector3(-150, 368, -300), 100, 3, 1.0, 3);
+    await this.addGeomScaled(this.sunFile,       new Vector3(-150, 340, -300), 100, 3, 1.0, 3);
     // Teal, right side: 300×100×300
-    await this.addGeomScaled(this.tealLightFile, new Vector3( 150, 368, -300), 100, 3, 1.0, 3);
+    await this.addGeomScaled(this.tealLightFile, new Vector3( 150, 340, -300), 100, 3, 1.0, 3);
 
     // ── Coloured diffuse wall panels ──────────────────────────────────────
     // Orange left: 10×300×500
@@ -386,6 +391,9 @@ export class LightPuzzle {
 
   setPrompt(text) {
     const el = document.getElementById("hud-prompt");
-    if (el) el.textContent = text;
+    if (el) {
+      el.textContent = text;
+      el.style.display = text ? "" : "none";
+    }
   }
 }

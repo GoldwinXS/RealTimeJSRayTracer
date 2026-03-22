@@ -566,7 +566,7 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 			pixelSharpness = diffuseCount == 0 && coatTypeIntersected == FALSE ? -1.0 : pixelSharpness;
 
 			nc = 1.0; // IOR of Air
-			nt = 1.33; // IOR of Water
+			nt = 1.5; // IOR of Glass
 			Re = calcFresnelReflectance(rayDirection, n, nc, nt, ratioIoR);
 			Tr = 1.0 - Re;
 
@@ -599,6 +599,12 @@ vec3 CalculateRadiance(out vec3 objectNormal, out vec3 objectColor, out float ob
 		}
 
 	}
+	// Clamp fireflies: single-sample spikes from lucky specular paths hitting
+	// emitters directly. Clamping individual contributions biases the result
+	// very slightly but eliminates the bright single-pixel flashes that the
+	// denoiser can't smooth away.
+	accumCol = min(accumCol, vec3(20.0));
+
 	return max(vec3(0), accumCol);
 }
 
@@ -677,13 +683,13 @@ void main(void) {
 
 	if(uCameraIsMoving) // camera is currently moving
 	{
-		previousPixel.rgb *= uBlurRatio; // motion-blur trail amount (old image)
-		currentPixel.rgb *= 0.4; // brightness of new image (noisy)
+		previousPixel.rgb *= uBlurRatio; // fade old image for motion-blur trail
+		currentPixel.rgb *= 0.4; // weight of noisy new sample during movement
 
 		previousPixel.a = 0.0;
 	} else {
-		previousPixel.rgb *= 0.8; // motion-blur trail amount (old image)
-		currentPixel.rgb *= 0.2; // brightness of new image (noisy)
+		previousPixel.rgb *= 0.8;
+		currentPixel.rgb  *= 0.2;
 	}
 
 	// if current raytraced pixel didn't return any color value, just use the previous frame's pixel color

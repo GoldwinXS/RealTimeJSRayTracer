@@ -80,6 +80,7 @@ export const sceneSettings = {
   filterDecaySpeed: 0.0002,
   useToneMapping: true,
   cameraIsMoving: false,
+  cameraRecentlyMoving: false,
   frameTime: null,
   elapsedTime: null,
   needChangePixelResolution: true,
