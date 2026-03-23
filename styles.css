@@ -110,6 +110,33 @@ body {
 }
 
 /* Level complete banner */
+/* Ship model controls — Gallery III */
+#ship-controls {
+    position: fixed;
+    bottom: 24px;
+    right: 20px;
+    display: flex;
+    gap: 8px;
+    z-index: 500;
+}
+
+#ship-controls button {
+    background: rgba(0, 0, 0, 0.55);
+    color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    padding: 11px 20px;
+    font-family: monospace;
+    font-size: 13px;
+    border-radius: 4px;
+    cursor: pointer;
+    touch-action: manipulation;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+#ship-controls button:active {
+    background: rgba(255, 255, 255, 0.15);
+}
+
 #hud-complete {
     display: none;
     position: fixed;

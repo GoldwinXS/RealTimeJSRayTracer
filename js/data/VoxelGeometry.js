@@ -305,7 +305,7 @@ export class VoxelGeometry {
       this.mesh.rotation[input] = radians;
     } else if (input instanceof THREE.Euler) {
       // Assuming input is a THREE.Vector3 object representing rotation in radians
-      this.mesh.rotation.set(input.x, input.y, input.z);
+      this.mesh.rotation.set(input.x, input.y, input.z, input.order);
     } else {
       console.error("Invalid input for setRotation");
     }
